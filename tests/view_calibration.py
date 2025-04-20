@@ -2,222 +2,165 @@ import cv2
 import numpy as np
 import os
 
-class PrecisionViewDetector:
+class EnhancedViewDetector:
     def __init__(self):
         self.base_path = "D:/Users/Documents/Code/Python/Entrainement/tests/"
-        self.template_path = os.path.join(self.base_path, "templates/")
         
-        # Zones de recherche spécifiques
-        self.search_zones = {
-            'explore_area': (375, 57, 2182, 921)  # x1, y1, x2, y2
-        }
-        
-        # Chargement des templates critiques seulement
-        self.templates = {
-            'barbarian': self._load_template('barbarian.png'),
-            'food': self._load_template('food.png'),
-            'gems': self._load_template('gems.png'),
-            'gold': self._load_template('gold.png'),
-            'stone': self._load_template('stone.png'),
-            'wood': self._load_template('wood.png')
-        }
-        
-        # Configuration précise des vues
-        self.view_profiles = {
-            'city_view': {
-                'logo_zone': (74, 903, 243, 1060),
+        # Configuration précise des logos
+        self.logo_config = {
+            'city_logo': {
+                'zone': (74, 903, 243, 1060),
                 'color_sample': (150, 980),
                 'expected_color': [9, 83, 132],  # BGR exact
                 'tolerance': 15
             },
-            'map_view': {
-                'logo_zone': (74, 903, 243, 1060),
+            'map_logo': {
+                'zone': (74, 903, 243, 1060),  # Même zone mais couleur différente
                 'color_sample': (150, 980),
-                'expected_color': [9, 83, 132],
+                'expected_color': [20, 90, 140],  # BGR légèrement différent
                 'tolerance': 15
             },
-            'explore_view': {
-                'special_marker': (125, 501, [197, 34, 251], 10),  # x, y, BGR, tol
-                'search_zone': 'explore_area'
-            },
-            'kingdom_view': {
-                'logo_zone': (2037, 944, 2174, 1064),
+            'kingdom_logo': {
+                'zone': (2037, 944, 2174, 1064),
                 'color_sample': (2100, 1000),
                 'expected_color': [100, 200, 250],
                 'tolerance': 50
+            },
+            'mail_logo': {
+                'zone': (1891, 948, 2027, 1053),
+                'color_sample': (1950, 1000),
+                'expected_color': [150, 150, 150],
+                'tolerance': 30
+            }
+        }
+        
+        # Configuration des marqueurs spéciaux
+        self.markers = {
+            'explore_marker': {
+                'position': (128, 494),
+                'expected_color': [246, 36, 195],  # BGR
+                'tolerance': 10
             }
         }
 
-    def _load_template(self, filename):
-        """Charge un template avec gestion d'erreur"""
-        path = os.path.join(self.template_path, filename)
-        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-        if img is None:
-            raise FileNotFoundError(f"Template manquant: {filename}")
-        if img.shape[2] == 4:
-            return (img[:,:,:3], img[:,:,3])  # Image + alpha
-        return (img, None)  # Image seulement
+    def _check_logo(self, img, logo_name):
+        """Vérifie la présence d'un logo spécifique"""
+        config = self.logo_config.get(logo_name)
+        if not config:
+            return False
+        
+        x1, y1, x2, y2 = config['zone']
+        if y2 > img.shape[0] or x2 > img.shape[1]:
+            return False
+            
+        # Vérification couleur moyenne
+        roi = img[y1:y2, x1:x2]
+        avg_color = np.mean(roi, axis=(0, 1))
+        return np.all(np.abs(avg_color - config['expected_color']) <= config['tolerance'])
 
-    def _crop_search_zone(self, img, zone_name):
-        """Découpe la zone de recherche spécifique"""
-        if zone_name not in self.search_zones:
-            return img
-        x1, y1, x2, y2 = self.search_zones[zone_name]
-        return img[y1:y2, x1:x2]
+    def _check_marker(self, img, marker_name):
+        """Vérifie un marqueur ponctuel"""
+        config = self.markers.get(marker_name)
+        if not config:
+            return False
+            
+        x, y = config['position']
+        if y >= img.shape[0] or x >= img.shape[1]:
+            return False
+            
+        return np.all(np.abs(img[y, x] - config['expected_color']) <= config['tolerance'])
 
     def detect_view(self, img):
-        """Détection précise de la vue active"""
+        """Détection hiérarchique précise"""
         if img is None:
             return None
         
-        # 1. Détection prioritaire de kingdom_view
-        k_config = self.view_profiles['kingdom_view']
-        k_zone = k_config['logo_zone']
-        if all(coord < img.shape[1] if i%2 == 0 else coord < img.shape[0] for i, coord in enumerate(k_zone)):
-            k_roi = img[k_zone[1]:k_zone[3], k_zone[0]:k_zone[2]]
-            avg_color = np.mean(k_roi, axis=(0, 1))
-            if np.all(np.abs(avg_color - k_config['expected_color']) <= k_config['tolerance']):
-                return 'kingdom_view'
-
-        # 2. Détection explore_view (marqueur violet strict)
-        ex_config = self.view_profiles['explore_view']
-        ex_x, ex_y, ex_color, ex_tol = ex_config['special_marker']
-        if ex_y < img.shape[0] and ex_x < img.shape[1]:
-            if np.all(np.abs(img[ex_y, ex_x] - ex_color) <= ex_tol):
-                return 'explore_view'
-
+        # 1. Détection kingdom_view (logo royaume + logo mail)
+        if (self._check_logo(img, 'kingdom_logo') and 
+            self._check_logo(img, 'mail_logo')):
+            return 'kingdom_view'
+            
+        # 2. Détection explore_view (logo ville + marqueur violet)
+        if (self._check_logo(img, 'city_logo') and 
+            self._check_marker(img, 'explore_marker')):
+            return 'explore_view'
+            
         # 3. Différenciation city_view/map_view
-        c_config = self.view_profiles['city_view']
-        c_x, c_y = c_config['color_sample']
-        if c_y < img.shape[0] and c_x < img.shape[1]:
-            if np.all(np.abs(img[c_y, c_x] - c_config['expected_color']) <= c_config['tolerance']):
-                return 'city_view'
-        
-        return 'map_view'
+        if self._check_logo(img, 'city_logo'):
+            # Vérification fine de la couleur pour différencier
+            x, y = self.logo_config['city_logo']['color_sample']
+            pixel = img[y, x]
+            city_color = self.logo_config['city_logo']['expected_color']
+            map_color = self.logo_config['map_logo']['expected_color']
+            
+            # Distance aux couleurs attendues
+            dist_city = np.linalg.norm(pixel - city_color)
+            dist_map = np.linalg.norm(pixel - map_color)
+            
+            return 'city_view' if dist_city < dist_map else 'map_view'
+            
+        # 4. Détection map_view par défaut si logo map trouvé
+        if self._check_logo(img, 'map_logo'):
+            return 'map_view'
+            
+        return 'unknown'
 
-    def detect_explore_features(self, img):
-        """Détection spécifique à explore_view seulement"""
-        if self.detect_view(img) != 'explore_view':
-            return None
-        
-        results = {
-            'barbarians': [],
-            'resources': []
-        }
-        
-        # Recherche dans la zone spécifique
-        zone_name = self.view_profiles['explore_view']['search_zone']
-        search_img = self._crop_search_zone(img, zone_name)
-        if search_img is None:
-            return results
-        
-        # Détection des barbares
-        barb_template, barb_alpha = self.templates['barbarian']
-        res = cv2.matchTemplate(search_img, barb_template, cv2.TM_CCOEFF_NORMED, mask=barb_alpha)
-        loc = np.where(res >= 0.85)  # Seuil élevé pour précision
-        for pt in zip(*loc[::-1]):
-            results['barbarians'].append({
-                'position': (pt[0] + self.search_zones[zone_name][0], 
-                            pt[1] + self.search_zones[zone_name][1])
-            })
-
-        # Détection des ressources
-        for res_name in ['food', 'gems', 'gold', 'stone', 'wood']:
-            template, alpha = self.templates[res_name]
-            res = cv2.matchTemplate(search_img, template, cv2.TM_CCOEFF_NORMED, mask=alpha)
-            loc = np.where(res >= 0.8)
-            for pt in zip(*loc[::-1]):
-                results['resources'].append({
-                    'type': res_name,
-                    'position': (pt[0] + self.search_zones[zone_name][0], 
-                                pt[1] + self.search_zones[zone_name][1])
-                })
-        
-        return results
-
-    def analyze_and_display(self, img_path):
-        """Analyse complète avec affichage OpenCV"""
+    def analyze_view(self, img_path):
+        """Analyse complète avec affichage"""
         img = cv2.imread(img_path)
         if img is None:
             print(f"Erreur: Impossible de charger {img_path}")
             return
         
         view_type = self.detect_view(img)
-        print(f"\nVue détectée: {view_type}")
+        print(f"\nAnalyse de {os.path.basename(img_path)}")
+        print(f"Vue détectée: {view_type}")
         
-        # Création de l'image de résultat
+        # Affichage des résultats de vérification
+        print("\nDétails de détection:")
+        for logo in self.logo_config:
+            print(f"- {logo}: {'OUI' if self._check_logo(img, logo) else 'NON'}")
+        for marker in self.markers:
+            print(f"- {marker}: {'OUI' if self._check_marker(img, marker) else 'NON'}")
+        
+        # Création de l'image annotée
         display_img = img.copy()
         
-        # Annotation selon la vue
-        if view_type in self.view_profiles:
-            config = self.view_profiles[view_type]
-            
-            # Zone logo
-            if 'logo_zone' in config:
-                x1, y1, x2, y2 = config['logo_zone']
-                cv2.rectangle(display_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(display_img, f"{view_type} logo", (x1, y1-10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            
-            # Marqueur spécial
-            if view_type == 'explore_view' and 'special_marker' in config:
-                x, y, _, _ = config['special_marker']
-                cv2.circle(display_img, (x, y), 10, (255, 0, 255), -1)
-                cv2.putText(display_img, "Marqueur violet", (x-50, y-15), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
+        # Annotation des zones vérifiées
+        for logo, config in self.logo_config.items():
+            x1, y1, x2, y2 = config['zone']
+            if y2 <= img.shape[0] and x2 <= img.shape[1]:
+                color = (0, 255, 0) if self._check_logo(img, logo) else (0, 0, 255)
+                cv2.rectangle(display_img, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(display_img, logo, (x1, y1-10), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         
-        # Détection des features si explore_view
-        features = None
-        if view_type == 'explore_view':
-            features = self.detect_explore_features(img)
-            
-            # Zone de recherche
-            x1, y1, x2, y2 = self.search_zones['explore_area']
-            cv2.rectangle(display_img, (x1, y1), (x2, y2), (255, 255, 0), 2)
-            
-            # Barbares
-            if features and features['barbarians']:
-                for barb in features['barbarians']:
-                    x, y = barb['position']
-                    cv2.circle(display_img, (x, y), 8, (0, 0, 255), -1)
-                    cv2.putText(display_img, "Barbare", (x+10, y), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-            
-            # Ressources
-            if features and features['resources']:
-                for res in features['resources']:
-                    x, y = res['position']
-                    color = {
-                        'food': (0, 255, 255),
-                        'gems': (255, 0, 255),
-                        'gold': (0, 215, 255),
-                        'stone': (130, 130, 130),
-                        'wood': (0, 165, 255)
-                    }.get(res['type'], (255, 255, 255))
-                    cv2.circle(display_img, (x, y), 6, color, -1)
-                    cv2.putText(display_img, res['type'], (x+10, y), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        # Annotation des marqueurs
+        for marker, config in self.markers.items():
+            x, y = config['position']
+            if y < img.shape[0] and x < img.shape[1]:
+                color = (255, 0, 255) if self._check_marker(img, marker) else (0, 165, 255)
+                cv2.circle(display_img, (x, y), 10, color, -1)
+                cv2.putText(display_img, marker, (x-50, y-15), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         
-        # Affichage des résultats
-        cv2.imshow('Resultats Detection', display_img)
-        print("Appuyez sur une touche pour continuer...")
+        # Affichage
+        cv2.imshow('Detection Results', display_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-        
-        # Affichage console
-        if view_type == 'explore_view' and features:
-            print("\nDétails exploration:")
-            print(f"Barbares trouvés: {len(features['barbarians'])}")
-            print("Ressources trouvées:")
-            for res in features['resources']:
-                print(f"- {res['type']} à {res['position']}")
 
 if __name__ == "__main__":
-    detector = PrecisionViewDetector()
+    detector = EnhancedViewDetector()
     
     # Test sur toutes les vues
-    for view in ['city_view', 'map_view', 'explore_view', 'kingdom_view']:
-        img_path = os.path.join(detector.base_path, f"{view}.png")
+    test_images = [
+        'city_view.png',
+        'map_view.png',
+        'explore_view.png',
+        'kingdom_view.png'
+    ]
+    
+    for img_file in test_images:
+        img_path = os.path.join(detector.base_path, img_file)
         if os.path.exists(img_path):
-            print(f"\nAnalyse de {view}...")
-            detector.analyze_and_display(img_path)
+            detector.analyze_view(img_path)
