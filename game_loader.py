@@ -42,19 +42,19 @@ class GameLoader:
             return False
 
     def launch_game(self):
-    """Lancement silencieux avec timeout réduit"""
-    try:
-        print("🚀 Lancement en cours...")
-        result = subprocess.run(
-            ["adb", "shell", "monkey", "-p", self.game_package, "1"],
-            stdout=subprocess.DEVNULL,  # Supprime les logs verbeux
-            stderr=subprocess.PIPE,
-            timeout=10
-        )
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
-        print("⚠️ Timeout lancement")
-        return False
+        """Lancement silencieux avec timeout réduit"""
+        try:
+            print("🚀 Lancement en cours...")
+            result = subprocess.run(
+                ["adb", "shell", "monkey", "-p", self.game_package, "1"],
+                stdout=subprocess.DEVNULL,  # Supprime les logs verbeux
+                stderr=subprocess.PIPE,
+                timeout=10
+            )
+            return result.returncode == 0
+        except subprocess.TimeoutExpired:
+            print("⚠️ Timeout lancement")
+            return False
 
     def wait_for_loading(self):
         """Processus complet avec déverrouillage"""
