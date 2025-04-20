@@ -82,7 +82,7 @@ class GameLoader:
             return False
 
     def wait_for_loading(self):
-            """Processus complet avec vérification d'état"""
+        """Processus complet avec vérification d'état"""
         print("=== Vérification initiale ===")
         
         # Vérification verrouillage
