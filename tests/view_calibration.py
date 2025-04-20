@@ -1,6 +1,10 @@
-# Outil pour capturer les références
-from phone_controller import PhoneController
-from ..core.phone_controller import PhoneController
+#import du path
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+
+from core.phone_controller import PhoneController
+
 import cv2
 
 phone = PhoneController()
