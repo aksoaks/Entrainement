@@ -1,0 +1,93 @@
+{
+  "mode": "intermediaire",
+  "timestamp": "2025-04-20T20:11:30.944783",
+  "actions": [
+    {
+      "timestamp": 1745172681.6026094,
+      "type": "prompt_displayed",
+      "mode": "intermediaire"
+    },
+    {
+      "timestamp": 1745172681.602612,
+      "type": "tap",
+      "coord": [
+        100,
+        200
+      ],
+      "before_calibration": true
+    },
+    {
+      "timestamp": 1745172690.9439964,
+      "type": "validation_received",
+      "mode": "intermediaire"
+    }
+  ],
+  "pixel_data": [
+    {
+      "coord": [
+        2242,
+        703
+      ],
+      "rgb": [
+        22,
+        98,
+        20
+      ]
+    },
+    {
+      "coord": [
+        2241,
+        703
+      ],
+      "rgb": [
+        100,
+        169,
+        113
+      ]
+    },
+    {
+      "coord": [
+        2238,
+        703
+      ],
+      "rgb": [
+        36,
+        213,
+        117
+      ]
+    },
+    {
+      "coord": [
+        2207,
+        702
+      ],
+      "rgb": [
+        69,
+        38,
+        15
+      ]
+    },
+    {
+      "coord": [
+        2203,
+        702
+      ],
+      "rgb": [
+        60,
+        233,
+        66
+      ]
+    },
+    {
+      "coord": [
+        2200,
+        702
+      ],
+      "rgb": [
+        34,
+        137,
+        230
+      ]
+    }
+  ]
+}

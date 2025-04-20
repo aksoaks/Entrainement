@@ -1,0 +1,93 @@
+{
+  "mode": "alentour",
+  "timestamp": "2025-04-20T20:11:21.601501",
+  "actions": [
+    {
+      "timestamp": 1745172671.1742692,
+      "type": "prompt_displayed",
+      "mode": "alentour"
+    },
+    {
+      "timestamp": 1745172671.1742718,
+      "type": "tap",
+      "coord": [
+        100,
+        200
+      ],
+      "before_calibration": true
+    },
+    {
+      "timestamp": 1745172681.6006942,
+      "type": "validation_received",
+      "mode": "alentour"
+    }
+  ],
+  "pixel_data": [
+    {
+      "coord": [
+        2242,
+        703
+      ],
+      "rgb": [
+        204,
+        250,
+        85
+      ]
+    },
+    {
+      "coord": [
+        2241,
+        703
+      ],
+      "rgb": [
+        104,
+        220,
+        30
+      ]
+    },
+    {
+      "coord": [
+        2238,
+        703
+      ],
+      "rgb": [
+        147,
+        203,
+        169
+      ]
+    },
+    {
+      "coord": [
+        2207,
+        702
+      ],
+      "rgb": [
+        124,
+        63,
+        233
+      ]
+    },
+    {
+      "coord": [
+        2203,
+        702
+      ],
+      "rgb": [
+        30,
+        89,
+        123
+      ]
+    },
+    {
+      "coord": [
+        2200,
+        702
+      ],
+      "rgb": [
+        79,
+        49,
+        208
+      ]
+    }
+  ]
+}

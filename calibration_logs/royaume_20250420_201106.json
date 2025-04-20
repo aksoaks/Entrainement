@@ -1,0 +1,93 @@
+{
+  "mode": "royaume",
+  "timestamp": "2025-04-20T20:11:38.211971",
+  "actions": [
+    {
+      "timestamp": 1745172690.9459999,
+      "type": "prompt_displayed",
+      "mode": "royaume"
+    },
+    {
+      "timestamp": 1745172690.9460027,
+      "type": "tap",
+      "coord": [
+        100,
+        200
+      ],
+      "before_calibration": true
+    },
+    {
+      "timestamp": 1745172698.2112374,
+      "type": "validation_received",
+      "mode": "royaume"
+    }
+  ],
+  "pixel_data": [
+    {
+      "coord": [
+        2242,
+        703
+      ],
+      "rgb": [
+        239,
+        14,
+        180
+      ]
+    },
+    {
+      "coord": [
+        2241,
+        703
+      ],
+      "rgb": [
+        166,
+        192,
+        222
+      ]
+    },
+    {
+      "coord": [
+        2238,
+        703
+      ],
+      "rgb": [
+        160,
+        157,
+        222
+      ]
+    },
+    {
+      "coord": [
+        2207,
+        702
+      ],
+      "rgb": [
+        236,
+        100,
+        61
+      ]
+    },
+    {
+      "coord": [
+        2203,
+        702
+      ],
+      "rgb": [
+        254,
+        41,
+        127
+      ]
+    },
+    {
+      "coord": [
+        2200,
+        702
+      ],
+      "rgb": [
+        7,
+        131,
+        249
+      ]
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "mode": "ville",
+  "timestamp": "2025-04-20T20:11:11.173194",
+  "actions": [
+    {
+      "timestamp": 1745172666.2735763,
+      "type": "prompt_displayed",
+      "mode": "ville"
+    },
+    {
+      "timestamp": 1745172666.2735806,
+      "type": "tap",
+      "coord": [
+        100,
+        200
+      ],
+      "before_calibration": true
+    },
+    {
+      "timestamp": 1745172670.8616025,
+      "type": "validation_received",
+      "mode": "ville"
+    }
+  ],
+  "pixel_data": [
+    {
+      "coord": [
+        2242,
+        703
+      ],
+      "rgb": [
+        251,
+        183,
+        248
+      ]
+    },
+    {
+      "coord": [
+        2241,
+        703
+      ],
+      "rgb": [
+        7,
+        140,
+        114
+      ]
+    },
+    {
+      "coord": [
+        2238,
+        703
+      ],
+      "rgb": [
+        39,
+        29,
+        135
+      ]
+    },
+    {
+      "coord": [
+        2207,
+        702
+      ],
+      "rgb": [
+        71,
+        185,
+        134
+      ]
+    },
+    {
+      "coord": [
+        2203,
+        702
+      ],
+      "rgb": [
+        65,
+        6,
+        39
+      ]
+    },
+    {
+      "coord": [
+        2200,
+        702
+      ],
+      "rgb": [
+        17,
+        151,
+        68
+      ]
+    }
+  ]
+}
