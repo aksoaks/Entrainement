@@ -40,52 +40,58 @@ class GameLoader:
             return None
 
     def wait_for_loading(self):
-        """Attend que le chargement atteigne 100%"""
-        print("Vérification approfondie...")
-        test_cmd = self.phone.run_adb_command("pm list packages")
+        """Version corrigée avec gestion améliorée"""
+        print("Vérification approfondie de la connexion...")
+        
+        # Test matériel supplémentaire
+        device_model = self.phone.run_adb_command("getprop ro.product.model")
+        print(f"Modèle détecté: {device_model}")
+        
         if not self.phone.check_connection():
-            print("Échec: Téléphone non connecté")
-            return 0
-        if "package:" not in test_cmd:
-            print("ERREUR: Permission refusée - Activez le débogage USB")
+            print("ERREUR: Vérifiez:")
+            print("- Débogage USB activé")
+            print("- Autorisation accordée")
+            print("- Câble USB fonctionnel")
             return 0
 
+        print("Début du monitoring de chargement...")
         attempt = 0
         last_percentage = 0
         
         while attempt < self.max_attempts:
             try:
-                print("Capture de l'écran...")
-                screenshot = self.phone.capture_screen()
-                if screenshot is None:
-                    print("Échec: Impossible de capturer l'écran")
-                    raise ValueError("Capture d'écran échouée")
+                print(f"Tentative {attempt + 1}/{self.max_attempts}")
+                screenshot = self.phone.capture_screen("current_screen.png")
                 
-                # Détection du pourcentage
+                if screenshot is None:
+                    raise ValueError("Échec capture écran")
+                
                 percentage = self.detect_loading_percentage(screenshot)
                 
-                if percentage is not None:
-                    print(f"Chargement: {percentage}%")
+                if percentage is None:
+                    print("Aucun pourcentage détecté - vérifiez la ROI")
+                    attempt += 1
+                    continue
                     
-                    if percentage == 100:
-                        print("Chargement terminé!")
-                        return 1
+                print(f"Progression: {percentage}%")
+                
+                if percentage == 100:
+                    print("✅ Chargement complet!")
+                    return 1
                     
-                    # Vérification que la progression avance
-                    if percentage > last_percentage:
-                        last_percentage = percentage
-                    else:
-                        attempt += 1  # Stagnation
+                if percentage <= last_percentage:
+                    print("⚠️ Progression stagnante")
+                    attempt += 1
                 else:
-                    attempt += 1  # Échec détection
+                    last_percentage = percentage
                     
             except Exception as e:
-                print(f"Erreur: {str(e)}")
+                print(f"ERREUR: {str(e)}")
                 attempt += 1
                 
             time.sleep(self.check_interval)
         
-        print("Timeout - Le chargement n'a pas atteint 100%")
+        print("❌ Timeout atteint")
         return 0
 
 if __name__ == "__main__":
