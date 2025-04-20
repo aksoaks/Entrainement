@@ -28,4 +28,3 @@ if %errorlevel% neq 0 (
 )
 
 echo Mise à jour terminée avec succès!
-timeout /t 3
