@@ -1,114 +1,175 @@
 import cv2
 import numpy as np
-import os
+import subprocess
 import time
-from collections import defaultdict
+import json
+from dataclasses import dataclass
+from typing import Optional, Dict, List
 
-class ViewDetector:
-    def __init__(self, device_serial):
-        self.device_serial = device_serial
-        self.reference_data = defaultdict(dict)
-        self.load_references()
-        
-    def capture_via_usb(self):
-        """Capture d'écran via USB avec ADB"""
-        timestamp = str(int(time.time()))
-        img_path = f"capture_{timestamp}.png"
-        
-        # Commande ADB en mode USB
-        os.system(f"adb -s {self.device_serial} exec-out screencap -p > {img_path}")
-        
-        img = cv2.imread(img_path)
-        os.remove(img_path)  # Nettoyage
-        return img
+@dataclass
+class ViewMode:
+    name: str
+    signature: Dict[str, List[int]]  # {"zone1": [x,y,r,g,b,tolerance], ...}
 
-    def load_references(self):
-        """Charge les signatures de référence des modes"""
-        # Exemple de structure à compléter avec vos données
-        self.reference_data = {
-            'ville': {
-                'zones': [(2242,703), (2207,702)],
-                'couleurs': {
-                    (2242,703): [105, 178, 124],
-                    (2207,702): [90, 175, 150]
-                },
-                'seuil': 15  # Tolérance couleur
-            },
-            'alentour': {
-                'zones': [(1604,630), (1598,630)],
-                'couleurs': {
-                    (1604,630): [40, 120, 178],
-                    (1598,630): [36, 116, 181]
-                },
-                'seuil': 10
+class AndroidViewDetector:
+    def __init__(self, device_serial: str = None):
+        self.device_serial = device_serial or self._detect_connected_device()
+        self.modes = self._load_view_modes()
+        self._validate_connection()
+
+    def _detect_connected_device(self) -> str:
+        """Trouve automatiquement le device Android connecté en USB"""
+        try:
+            result = subprocess.run(['adb', 'devices'], 
+                                 capture_output=True, 
+                                 text=True,
+                                 check=True)
+            devices = [line.split('\t')[0] 
+                     for line in result.stdout.splitlines() 
+                     if '\tdevice' in line]
+            if not devices:
+                raise ConnectionError("Aucun appareil Android détecté via USB")
+            return devices[0]
+        except subprocess.CalledProcessError as e:
+            raise ConnectionError(f"Erreur ADB: {e.stderr}") from e
+
+    def _validate_connection(self):
+        """Vérifie que la connexion ADB fonctionne"""
+        try:
+            subprocess.run(['adb', '-s', self.device_serial, 'shell', 'echo', 'test'],
+                         check=True,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            raise ConnectionError(f"Échec de communication avec l'appareil: {e.stderr.decode()}")
+
+    def _load_view_modes(self) -> Dict[str, ViewMode]:
+        """Charge les signatures des modes de vue depuis un fichier JSON"""
+        try:
+            with open('view_modes.json') as f:
+                data = json.load(f)
+                return {k: ViewMode(name=k, signature=v) for k,v in data.items()}
+        except FileNotFoundError:
+            return {
+                'ville': ViewMode('ville', {'top_right': [2242,703,105,178,124,15]}),
+                'alentour': ViewMode('alentour', {'middle_left': [1604,630,40,120,178,10]})
             }
-        }
 
-    def detect_mode(self, img):
-        """Détecte le mode actuel par comparaison"""
+    def capture_screen(self) -> Optional[np.ndarray]:
+        """Capture d'écran robuste avec vérification d'erreur"""
+        try:
+            result = subprocess.run(['adb', '-s', self.device_serial, 'exec-out', 'screencap', '-p'],
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   check=True)
+            
+            img_array = np.frombuffer(result.stdout, dtype=np.uint8)
+            img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+            
+            if img is None:
+                raise ValueError("Échec du décodage de l'image")
+            return img
+        except (subprocess.CalledProcessError, ValueError) as e:
+            print(f"Erreur capture: {str(e)}")
+            return None
+
+    def detect_current_view(self, img: np.ndarray) -> Optional[str]:
+        """Détecte le mode de vue actuel avec gestion d'erreur"""
+        if img is None:
+            raise ValueError("Image non fournie pour la détection")
+        
         best_match = None
-        lowest_diff = float('inf')
+        best_score = 0
         
-        for mode, data in self.reference_data.items():
-            total_diff = 0
-            valid_points = 0
+        for mode_name, mode in self.modes.items():
+            total_matches = 0
+            required_matches = len(mode.signature)
             
-            for coord, ref_color in data['couleurs'].items():
-                x, y = coord
-                if y < img.shape[0] and x < img.shape[1]:
+            for zone, (x, y, r, g, b, tol) in mode.signature.items():
+                try:
+                    if y >= img.shape[0] or x >= img.shape[1]:
+                        continue
+                        
                     pixel = img[y, x]
-                    diff = np.sqrt(np.sum((pixel - ref_color)**2))
-                    if diff <= data['seuil']:
-                        total_diff += diff
-                        valid_points += 1
+                    if np.all(np.abs(pixel - [b,g,r]) <= tol):  # OpenCV utilise BGR
+                        total_matches += 1
+                except Exception as e:
+                    print(f"Erreur analyse zone {zone}: {str(e)}")
+                    continue
             
-            if valid_points > 0:
-                avg_diff = total_diff / valid_points
-                if avg_diff < lowest_diff:
-                    lowest_diff = avg_diff
-                    best_match = mode
-        
-        return best_match if lowest_diff < 50 else None  # Seuil global
+            match_ratio = total_matches / required_matches
+            if match_ratio > 0.8 and match_ratio > best_score:  # 80% des zones correspondent
+                best_score = match_ratio
+                best_match = mode_name
+                
+        return best_match
 
-    def calibrate_mode(self, mode_name, samples=3):
-        """Calibration d'un nouveau mode"""
-        print(f"\nCalibration du mode {mode_name}...")
+    def interactive_calibration(self):
+        """Mode calibration pas-à-pas"""
+        print("Début de la calibration interactive...")
+        mode_name = input("Nom du nouveau mode: ")
+        
+        print("Capture des zones caractéristiques...")
         input("Placez-vous dans le mode puis appuyez sur Entrée")
         
-        color_samples = defaultdict(list)
+        signature = {}
+        img = self.capture_screen()
+        if img is None:
+            return
+            
+        cv2.imshow('Calibration', img)
+        print("Cliquez sur les zones caractéristiques (ESC pour terminer)")
         
-        for _ in range(samples):
-            img = self.capture_via_usb()
-            if img is None:
-                continue
-                
-            for x, y in self.reference_data['ville']['zones']:  # Zones communes
-                if y < img.shape[0] and x < img.shape[1]:
-                    color_samples[(x,y)].append(img[y,x])
+        points = []
+        def mouse_callback(event, x, y, flags, param):
+            if event == cv2.EVENT_LBUTTONDOWN:
+                color = img[y,x]
+                print(f"Zone {len(points)+1}: ({x},{y}) - Couleur {color}")
+                points.append((x, y, color[2], color[1], color[0], 10))  # (x,y,r,g,b,tol)
+                cv2.circle(img, (x,y), 5, (0,255,0), -1)
+                cv2.imshow('Calibration', img)
         
-        # Calcul des moyennes
-        avg_colors = {k: np.mean(v, axis=0).astype(int) for k,v in color_samples.items()}
+        cv2.setMouseCallback('Calibration', mouse_callback)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
         
-        # Mise à jour des références
-        self.reference_data[mode_name] = {
-            'zones': list(avg_colors.keys()),
-            'couleurs': avg_colors,
-            'seuil': 20  # Valeur par défaut
-        }
+        for i, (x,y,r,g,b,tol) in enumerate(points, 1):
+            signature[f'zone{i}'] = [x,y,r,g,b,tol]
         
-        print(f"Calibration terminée pour {mode_name}")
-        return avg_colors
+        self.modes[mode_name] = ViewMode(mode_name, signature)
+        self._save_modes()
+        print(f"Mode '{mode_name}' enregistré avec {len(points)} zones")
+
+    def _save_modes(self):
+        """Sauvegarde les modes dans un fichier JSON"""
+        with open('view_modes.json', 'w') as f:
+            json.dump({k: v.signature for k,v in self.modes.items()}, f, indent=2)
 
 if __name__ == "__main__":
-    detector = ViewDetector(device_serial="EML-L09")  # Remplacer par votre serial USB
-    
-    # Mode detection
-    input("Placez-vous dans un mode puis appuyez sur Entrée...")
-    test_img = detector.capture_via_usb()
-    detected = detector.detect_mode(test_img)
-    print(f"\nMode détecté : {detected}")
-    
-    # Mode calibration (optionnel)
-    if detected is None:
-        new_mode = input("Nom du nouveau mode à calibrer : ")
-        detector.calibrate_mode(new_mode)
+    try:
+        detector = AndroidViewDetector("EML-L09")  # Utilisez None pour auto-détection
+        
+        while True:
+            print("\nOptions:")
+            print("1. Détecter le mode actuel")
+            print("2. Calibrer un nouveau mode")
+            print("3. Quitter")
+            
+            choice = input("Votre choix: ")
+            
+            if choice == '1':
+                print("Capture en cours...")
+                img = detector.capture_screen()
+                if img is not None:
+                    mode = detector.detect_current_view(img)
+                    print(f"\nMode détecté: {mode if mode else 'Inconnu'}")
+            
+            elif choice == '2':
+                detector.interactive_calibration()
+            
+            elif choice == '3':
+                break
+                
+    except Exception as e:
+        print(f"Erreur critique: {str(e)}")
+        input("Appuyez sur Entrée pour quitter...")
