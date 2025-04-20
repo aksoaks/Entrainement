@@ -64,67 +64,102 @@ class AndroidViewDetector:
             return None
 
     def detect_view_mode(self, img: np.ndarray) -> Optional[str]:
-        """Détecte le mode de vue actuel"""
-        if img is None:
-            return None
+        """Version avec logging détaillé"""
+            print("\nDébut de la détection...")
             
-        best_match = None
-        best_score = 0
-        
-        for mode_name, mode in self.modes.items():
-            matches = 0
-            required = len(mode.signature)
+            best_match = None
+            best_score = 0
             
-            for zone, (x, y, r, g, b, tol) in mode.signature.items():
-                try:
-                    if (y < img.shape[0] and x < img.shape[1] and 
-                        np.all(np.abs(img[y,x] - [b,g,r]) <= tol)):
-                        matches += 1
-                except:
-                    continue
-            
-            if matches/required > 0.7 and matches > best_score:
-                best_score = matches
-                best_match = mode_name
+            for mode_name, mode in self.modes.items():
+                print(f"\nVérification du mode: {mode_name}")
+                total_matches = 0
                 
-        return best_match
+                for zone, params in mode.signature.items():
+                    x, y, r, g, b, tol = params
+                    try:
+                        if y >= img.shape[0] or x >= img.shape[1]:
+                            print(f"Zone {zone} hors limites - Image: {img.shape}")
+                            continue
+                        
+                        pixel = img[y, x]
+                        diff = np.abs(pixel - [b, g, r])
+                        print(f"Zone {zone} ({x},{y}) - Attendu: {[r,g,b]} | Réel: {pixel[::-1]} | Diff: {diff}")
+                        
+                        if np.all(diff <= tol):
+                            total_matches += 1
+                            print("→ Correspondance!")
+                        else:
+                            print(f"→ Écart trop important (tolérance: {tol})")
+                            
+                    except Exception as e:
+                        print(f"Erreur zone {zone}: {str(e)}")
+                
+                match_ratio = total_matches / len(mode.signature)
+                print(f"Score {mode_name}: {match_ratio:.2f}")
+                
+                if match_ratio > 0.7 and match_ratio > best_score:
+                    best_score = match_ratio
+                    best_match = mode_name
+            
+            print(f"\nDétection terminée - Meilleur match: {best_match} (score: {best_score:.2f})")
+            return best_match if best_score > 0.7 else None
 
     def interactive_calibration(self):
-        """Mode calibration interactif"""
+        """Calibration interactive avec gestion d'état"""
         print("\n=== Mode Calibration ===")
         mode_name = input("Nom du nouveau mode: ").strip()
         
-        print("Préparez l'écran puis appuyez sur Entrée...")
-        input()
-        
+        print("Capture de l'écran de référence...")
         img = self.capture_screen()
         if img is None:
+            print("Échec de la capture - vérifiez la connexion USB")
             return
-            
-        cv2.imshow("Calibration - Cliquez sur les zones caractéristiques", img)
+        
+        clone = img.copy()
         points = []
+        window_name = f"Calibration - {mode_name} (CLIC=zone, C=Annuler, S=Sauver)"
         
         def mouse_callback(event, x, y, flags, param):
+            nonlocal clone
             if event == cv2.EVENT_LBUTTONDOWN:
-                color = img[y,x]
-                print(f"Zone {len(points)+1}: ({x},{y}) - Couleur {color[::-1]} (RGB)")
+                color = clone[y, x]
+                print(f"Zone {len(points)+1}: ({x},{y}) | RGB: {color[::-1]}")
                 points.append((x, y, color[2], color[1], color[0], 10))
-                cv2.circle(img, (x,y), 5, (0,255,0), -1)
-                cv2.imshow("Calibration - Cliquez sur les zones caractéristiques", img)
+                cv2.circle(clone, (x, y), 5, (0, 255, 0), -1)
+                cv2.imshow(window_name, clone)
         
-        cv2.setMouseCallback("Calibration - Cliquez sur les zones caractéristiques", mouse_callback)
-        cv2.waitKey(0)
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        cv2.setMouseCallback(window_name, mouse_callback)
+        cv2.imshow(window_name, clone)
+        
+        print("Instructions:")
+        print("- Cliquez sur les zones caractéristiques")
+        print("- 'S': Sauvegarder et quitter")
+        print("- 'C': Annuler et recommencer")
+        
+        while True:
+            key = cv2.waitKey(20) & 0xFF
+            if key == ord('s'):
+                break
+            elif key == ord('c'):
+                points.clear()
+                clone = img.copy()
+                cv2.imshow(window_name, clone)
+                print("Calibration réinitialisée")
+        
         cv2.destroyAllWindows()
         
         if points:
             self.modes[mode_name] = ViewMode(
                 name=mode_name,
-                signature={f"zone{i}": list(p) for i,p in enumerate(points, 1)}
+                signature={f"zone_{i}": list(p) for i, p in enumerate(points, 1)}
             )
             self._save_modes()
-            print(f"Mode '{mode_name}' enregistré avec {len(points)} zones")
+            print(f"\nMode '{mode_name}' sauvegardé avec {len(points)} zones")
+            print("Vérification du fichier view_modes.json...")
+            print(json.dumps(self.modes[mode_name].signature, indent=2))
         else:
-            print("Aucune zone enregistrée")
+            print("Aucune zone enregistrée - calibration annulée")
 
     def _load_view_modes(self) -> Dict[str, ViewMode]:
         """Charge les signatures des modes"""
