@@ -1,7 +1,16 @@
 @echo off
-:: Script silencieux sauf erreurs et message final
+:: Aller dans le dossier du projet
+cd /d D:\Users\Documents\Code\Python\Entrainement
 
-set commit_msg="Last update: %date% %time%"
+:: Vérifie que c’est bien un dépôt Git
+if not exist .git (
+    echo [ERREUR] Ce dossier n'est pas un dépôt Git
+    pause
+    exit /b
+)
+
+:: Génère un message de commit
+set commit_msg=Last update: %date% %time%
 
 :: Ajouter tous les fichiers, cacher la sortie normale
 git add . >nul
@@ -12,9 +21,9 @@ if %errorlevel% neq 0 (
 )
 
 :: Commit avec message, cacher la sortie normale
-git commit -m %commit_msg% >nul
+git commit -m "%commit_msg%" >nul
 if %errorlevel% neq 0 (
-    echo [ERREUR] Échec du commit
+    echo [INFO] Aucun changement à committer ou erreur
     pause
     exit /b
 )
