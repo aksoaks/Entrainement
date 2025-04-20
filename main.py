@@ -1,9 +1,10 @@
+import subprocess
+subprocess.call([r"D:\Users\Documents\Code\Python\Entrainement\update_git.bat"])
+
 from game_loader import GameLoader
 from phone_controller import PhoneController
 import logging
-import subprocess
 
-subprocess.call([r"D:\Users\Documents\Code\Python\Entrainement\update_git.bat"])
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

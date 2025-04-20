@@ -8,7 +8,6 @@ class PhoneController:
     """Classe pour contrôler un appareil Android via ADB"""
     
     def __init__(self, device_id=None):
-        self.device_id = device_id
         self.adb_prefix = ["adb"] if not device_id else ["adb", "-s", device_id]
         self._check_adb_installation()
         self.check_connection()
@@ -18,20 +17,20 @@ class PhoneController:
         self.setup_touch_parameters()
 
     def check_connection(self):
-    """Vérification améliorée"""
-    try:
-        result = subprocess.run(self.adb_prefix + ["devices"],
-                              stdout=subprocess.PIPE,
-                              text=True,
-                              check=True)
-        print("Appareils connectés:\n", result.stdout)  # Debug
-        if "device" not in result.stdout:
-            raise RuntimeError("Aucun appareil autorisé")
-    except Exception as e:
-        print(f"ERREUR ADB: {str(e)}")
-        return False
-    return True
-    
+        """Vérification améliorée"""
+        try:
+            result = subprocess.run(self.adb_prefix + ["devices"],
+                                stdout=subprocess.PIPE,
+                                text=True,
+                                check=True)
+            print("Appareils connectés:\n", result.stdout)  # Debug
+            if "device" not in result.stdout:
+                raise RuntimeError("Aucun appareil autorisé")
+        except Exception as e:
+            print(f"ERREUR ADB: {str(e)}")
+            return False
+        return True
+
     def _check_adb_installation(self):
         """Vérifie si ADB est installé et accessible"""
         try:
