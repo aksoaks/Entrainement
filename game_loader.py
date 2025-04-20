@@ -41,9 +41,13 @@ class GameLoader:
 
     def wait_for_loading(self):
         """Attend que le chargement atteigne 100%"""
-        print("Vérification de la connexion...")
+        print("Vérification approfondie...")
+        test_cmd = self.phone.run_adb_command("pm list packages")
         if not self.phone.check_connection():
             print("Échec: Téléphone non connecté")
+            return 0
+        if "package:" not in test_cmd:
+            print("ERREUR: Permission refusée - Activez le débogage USB")
             return 0
 
         attempt = 0

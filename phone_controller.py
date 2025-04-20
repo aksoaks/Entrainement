@@ -31,6 +31,21 @@ class PhoneController:
             return False
         return True
 
+    def run_adb_command(self, command):
+        """Exécute une commande ADB et retourne le résultat"""
+        try:
+            result = subprocess.run(
+                self.adb_prefix + ["shell", command],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10
+            )
+            return result.stdout.strip()
+        except Exception as e:
+            print(f"Échec commande ADB: {str(e)}")
+            return ""
+            
     def _check_adb_installation(self):
         """Vérifie si ADB est installé et accessible"""
         try:
@@ -44,19 +59,25 @@ class PhoneController:
             raise RuntimeError("ADB n'est pas installé ou n'est pas dans le PATH")
 
     def check_connection(self):
-        """Vérifie la connexion au périphérique"""
+        """Vérification améliorée de la connexion"""
         try:
+            # Commande plus fiable
             result = subprocess.run(
-                self.adb_prefix + ["get-state"],
+                self.adb_prefix + ["shell", "getprop", "ro.product.model"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                check=True
+                timeout=5
             )
-            if "device" not in result.stdout.strip():
-                raise RuntimeError("Périphérique non connecté ou non autorisé")
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Erreur de connexion ADB: {e.stderr}")
+            
+            if result.returncode != 0:
+                raise RuntimeError(f"Erreur ADB: {result.stderr.strip()}")
+                
+            print(f"Appareil connecté: {result.stdout.strip()}")
+            return True
+        except Exception as e:
+            print(f"Échec vérification connexion: {str(e)}")
+            return False            
 
     def get_screen_resolution(self):
         """Récupère la résolution de l'écran"""

@@ -1,5 +1,6 @@
 from phone_controller import PhoneController
 
-    print("Test PhoneController...")
-    phone = PhoneController()
-    print(f"Résolution : {phone.resolution}")
+phone = PhoneController()
+print("Test connexion avancé...")
+print("Modèle:", phone.run_adb_command("getprop ro.product.model"))
+print("Packages:", phone.run_adb_command("pm list packages")[:50] + "...")
