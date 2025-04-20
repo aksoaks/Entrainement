@@ -1,0 +1,4 @@
+opencv-python==4.5.5.64
+pytesseract==0.3.10
+numpy==1.21.5
+pyautogui==0.9.53

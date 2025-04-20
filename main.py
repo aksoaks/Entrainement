@@ -1,10 +1,17 @@
 from game_loader import GameLoader
+import logging
 
-if __name__ == "__main__":
-    print("Démarrage du système de chargement...")
+# Configuration du logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def main():
+    logging.info("Initialisation du système...")
     loader = GameLoader()
     
     if loader.wait_for_loading() == 1:
-        print("✅ Jeu entièrement chargé!")
+        logging.info("Jeu complètement chargé!")
     else:
-        print("❌ Échec du chargement")
+        logging.error("Échec du chargement")
+
+if __name__ == "__main__":
+    main()
