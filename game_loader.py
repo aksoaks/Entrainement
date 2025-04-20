@@ -16,8 +16,8 @@ class GameLoader:
         self.game_package = "com.lilithgame.roc.gp"
 
     def check_pixel_color(self, image):
-        """Vérifie la couleur du pixel avec tolérance"""
-        if image is None:
+        if image is None or np.mean(image) < 10:  # Détection écran noir
+            print("📱 Écran verrouillé/éteint")
             return False
         try:
             actual_color = image[self.pixel_y, self.pixel_x]
@@ -27,56 +27,34 @@ class GameLoader:
             return False
 
     def unlock_device(self):
-        """Déverrouille l'appareil Android"""
-        print("🔓 Tentative de déverrouillage...")
+        """Déverrouillage optimisé en une étape"""
         try:
-            # Allume l'écran
-            subprocess.run(["adb", "shell", "input", "keyevent", "KEYCODE_POWER"], timeout=5)
-            time.sleep(1)
-            
-            # Glisse pour déverrouiller (adaptez les coordonnées si nécessaire)
-            subprocess.run(["adb", "shell", "input", "swipe", "300", "1000", "300", "500"], timeout=5)
-            time.sleep(1)
-            
-            # Entrée du code PIN (si configuré - à personnaliser)
-            # subprocess.run(["adb", "shell", "input", "text", "1234"], timeout=5)
-            # time.sleep(1)
-            
-            print("✅ Déverrouillage tenté")
+            # Unlock combo (power + swipe rapide)
+            subprocess.run([
+                "adb", "shell", "input", "keyevent", "KEYCODE_WAKEUP",
+                "&&", "input", "swipe", "500", "1500", "500", "500", "100"
+            ], timeout=3)
+            time.sleep(1.5)  # Temps réduit
+            print("🔓 Déverrouillage instantané")
             return True
         except Exception as e:
             print(f"⚠️ Échec déverrouillage: {e}")
             return False
 
     def launch_game(self):
-        """Lance le jeu avec gestion du verrouillage"""
-        # Vérifie si l'appareil est verrouillé
-        try:
-            lock_state = subprocess.run(
-                ["adb", "shell", "dumpsys", "window"],
-                stdout=subprocess.PIPE,
-                text=True
-            ).stdout
-            
-            if "mDreamingLockscreen=true" in lock_state:
-                self.unlock_device()
-                time.sleep(3)  # Attente après déverrouillage
-        except:
-            pass
-            
-        # Lancement du jeu
-        print("🚀 Lancement du jeu...")
-        start_time = time.time()
-        try:
-            subprocess.run(
-                ["adb", "shell", "monkey", "-p", self.game_package, "-c", "android.intent.category.LAUNCHER", "1"],
-                check=True,
-                timeout=15
-            )
-            return start_time
-        except Exception as e:
-            print(f"⚠️ Erreur lancement: {e}")
-            return None
+    """Lancement silencieux avec timeout réduit"""
+    try:
+        print("🚀 Lancement en cours...")
+        result = subprocess.run(
+            ["adb", "shell", "monkey", "-p", self.game_package, "1"],
+            stdout=subprocess.DEVNULL,  # Supprime les logs verbeux
+            stderr=subprocess.PIPE,
+            timeout=10
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        print("⚠️ Timeout lancement")
+        return False
 
     def wait_for_loading(self):
         """Processus complet avec déverrouillage"""
