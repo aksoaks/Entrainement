@@ -3,7 +3,6 @@
 
 set commit_msg="Last update: %date% %time%"
 
-echo [1/3] Ajout des fichiers...
 git add .
 if %errorlevel% neq 0 (
     echo Échec de l'ajout des fichiers
@@ -11,7 +10,6 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-echo [2/3] Commit avec message: %commit_msg%
 git commit -m %commit_msg%
 if %errorlevel% neq 0 (
     echo Échec du commit
@@ -19,7 +17,7 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-echo [3/3] Push vers GitHub...
+
 git push origin main
 if %errorlevel% neq 0 (
     echo Échec du push
@@ -27,4 +25,4 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-echo Mise à jour terminée avec succès!
+echo Git Update Done !
