@@ -14,58 +14,50 @@ class GameLoader:
         # Initialisez TOUTES les variables nécessaires ici
         self.loading_roi = (1000, 940, 250, 40)  # Exemple
 
-        def wait_for_loading(self):  # Ajoutez cette méthode
-            """Nouvelle implémentation complète"""
-            print("Début du monitoring...")
-            for attempt in range(self.max_attempts):
-                try:
-                    print(f"Tentative {attempt + 1}/{self.max_attempts}")
-                    screenshot = self.phone.capture_screen()
+    def wait_for_loading(self):
+        """Version robuste avec gestion d'erreurs"""
+        print("Début du processus...")
+        
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                # 1. Capture
+                screenshot = self.phone.capture_screen("debug_screen.png")
+                if screenshot is None:
+                    print(f"Tentative {attempt}: Échec capture")
+                    continue
                     
-                    if screenshot is None:
-                        continue
+                # 2. Détection verte
+                if self.is_green_loaded(screenshot):
+                    print("✅ Chargement détecté (couleur verte)")
+                    return 1
                     
-                    # Méthode de détection verte
-                    if self.is_green_loaded(screenshot):  # À implémenter
-                        print("✅ Chargement détecté par couleur verte")
-                        return 1
-                        
-                    # Méthode OCR (optionnelle)
+                # 3. Détection OCR
+                if hasattr(self, 'detect_loading_percentage'):
                     percentage = self.detect_loading_percentage(screenshot)
                     if percentage == 100:
-                        print("✅ Chargement complet (100%)")
+                        print("✅ Chargement 100% (OCR)")
                         return 1
-                        
-                    time.sleep(self.check_interval)
+                else:
+                    print("⚠️ Méthode OCR non disponible")
                     
-                except Exception as e:
-                    print(f"Erreur: {str(e)}")
-            
-            print("❌ Timeout atteint")
-            return 0    
+            except Exception as e:
+                print(f"⚠️ Erreur tentative {attempt}: {str(e)}")
+                
+            time.sleep(self.check_interval)
+        
+        print("❌ Échec après", self.max_attempts, "tentatives")
+        return 0  
 
     def detect_loading_percentage(self, image):
-        """Détecte le pourcentage de chargement depuis une image"""
+        if image is None:
+            print("Erreur: Image vide")
+            return None
+            
         try:
-            # Extraction de la ROI
             x, y, w, h = self.loading_roi
             roi = image[y:y+h, x:x+w]
-            
-            # Prétraitement pour OCR
             gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-            mask = cv2.inRange(blurred, 180, 255)
-            kernel = np.ones((2, 2), np.uint8)
-            mask = cv2.dilate(mask, kernel, iterations=1)
-            
-            # Reconnaissance du texte
-            custom_config = r'--psm 7 --oem 3 -l fra+eng'
-            text = pytesseract.image_to_string(mask, config=custom_config).strip()
-            
-            # Extraction du pourcentage
-            match = re.search(r'(\d{1,3})\s*%', text)
-            return int(match.group(1)) if match else None
-            
+            # ... (votre traitement OCR existant)
         except Exception as e:
             print(f"Erreur détection: {str(e)}")
             return None
