@@ -1,79 +1,116 @@
 import cv2
 import numpy as np
 import time
+import subprocess
 from phone_controller import PhoneController
 
 class GameLoader:
     def __init__(self):
         self.phone = PhoneController()
-        self.max_attempts = 8  # Tentatives avant lancement
-        self.check_interval = 1.5
+        self.max_attempts = 5  # Tentatives avant lancement
+        self.post_launch_attempts = 10  # Tentatives après lancement
+        self.check_interval = 2  # Intervalle de vérification
         
         # Configuration pixel
         self.pixel_x = 171
         self.pixel_y = 947
-        self.expected_color = np.array([248, 255, 255])  # BGR
-        self.color_tolerance = 15  # Marge élargie
+        self.expected_color = np.array([255, 255, 251])  # BGR (valeur corrigée)
+        self.color_tolerance = 20  # Marge élargie
         
         # Configuration jeu
-        self.game_package = "com.lilithgame.roc.gp"  # Package ROK
+        self.game_package = "com.lilithgame.roc.gp"
 
     def check_pixel_color(self, image):
         """Vérifie la couleur du pixel avec tolérance"""
+        if image is None:
+            return False
+            
         try:
+            # Vérifie que le pixel est dans l'image
+            if self.pixel_y >= image.shape[0] or self.pixel_x >= image.shape[1]:
+                print("Coordonnées pixel hors limites")
+                return False
+                
             actual_color = image[self.pixel_y, self.pixel_x]
+            print(f"Détection pixel: {actual_color} vs {self.expected_color}")
             return np.all(np.abs(actual_color - self.expected_color) <= self.color_tolerance)
-        except:
+        except Exception as e:
+            print(f"Erreur vérification pixel: {e}")
             return False
 
     def launch_game(self):
-        """Lance le jeu via ADB si pas détecté"""
-        print("Lancement du jeu...")
+        """Lance le jeu via ADB"""
+        print("Tentative de lancement du jeu...")
         try:
-            subprocess.run(
+            # Commande ADB pour lancer le jeu
+            result = subprocess.run(
                 ["adb", "shell", "monkey", "-p", self.game_package, "-c", "android.intent.category.LAUNCHER", "1"],
-                check=True,
-                timeout=10
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=15
             )
-            time.sleep(10)  # Temps de chargement initial
-            return True
+            if result.returncode == 0:
+                print("Lancement réussi, attente du chargement...")
+                return True
+            print("Échec du lancement")
+            return False
+        except subprocess.TimeoutExpired:
+            print("Timeout lors du lancement")
+            return False
         except Exception as e:
-            print(f"Échec lancement: {e}")
+            print(f"Exception lors du lancement: {e}")
             return False
 
     def wait_for_loading(self):
-        """Processus complet avec lancement automatique"""
-        print("=== Vérification état du jeu ===")
+        """Processus complet avec gestion d'erreurs améliorée"""
+        print("=== Initialisation du vérificateur de jeu ===")
         
-        # Phase 1: Vérification rapide
+        # Phase 1: Vérification de l'état actuel
+        print("Vérification si le jeu est déjà lancé...")
         for attempt in range(1, self.max_attempts + 1):
-            screenshot = self.phone.capture_screen()
-            if screenshot is None:
-                continue
-                
-            if self.check_pixel_color(screenshot):
-                print(f"✅ Jeu déjà en cours (tentative {attempt})")
-                return 1
-                
-            time.sleep(self.check_interval)
-        
-        # Phase 2: Lancement si non détecté
-        print("Jeu non détecté - tentative de lancement...")
-        if self.launch_game():
-            # Phase 3: Attente post-lancement
-            for wait_attempt in range(10):  # 10 x 3s = 30s max
+            try:
                 screenshot = self.phone.capture_screen()
-                if screenshot and self.check_pixel_color(screenshot):
-                    print("✅ Jeu lancé avec succès")
+                if screenshot is not None and self.check_pixel_color(screenshot):
+                    print(f"✅ Jeu détecté (tentative {attempt})")
                     return 1
-                time.sleep(3)
+                
+                print(f"Jeu non détecté (tentative {attempt}/{self.max_attempts})")
+                time.sleep(self.check_interval)
+                
+            except Exception as e:
+                print(f"Erreur lors de la vérification: {e}")
+                time.sleep(self.check_interval)
         
-        print("❌ Échec de chargement")
+        # Phase 2: Lancement du jeu
+        if not self.launch_game():
+            print("❌ Impossible de lancer le jeu")
+            return 0
+        
+        # Phase 3: Vérification post-lancement
+        print("Vérification du chargement après lancement...")
+        for attempt in range(1, self.post_launch_attempts + 1):
+            try:
+                screenshot = self.phone.capture_screen()
+                if screenshot is not None and self.check_pixel_color(screenshot):
+                    print(f"✅ Jeu chargé avec succès (tentative {attempt})")
+                    return 1
+                
+                print(f"En attente... ({attempt}/{self.post_launch_attempts})")
+                time.sleep(self.check_interval)
+                
+            except Exception as e:
+                print(f"Erreur vérification post-lancement: {e}")
+                time.sleep(self.check_interval)
+        
+        print("❌ Timeout - Jeu non chargé")
         return 0
 
 if __name__ == "__main__":
+    print("Démarrage du système...")
     loader = GameLoader()
-    if loader.wait_for_loading() == 1:
-        print("STATUS: Prêt à jouer!")
+    result = loader.wait_for_loading()
+    
+    if result == 1:
+        print("=== PRÊT À JOUER ===")
     else:
-        print("STATUS: Échec - vérifiez manuellement")
+        print("=== ÉCHEC - VÉRIFIEZ MANUEL ===")
