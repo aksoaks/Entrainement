@@ -14,36 +14,35 @@ class GameLoader:
         # Initialisez TOUTES les variables nécessaires ici
         self.loading_roi = (1000, 940, 250, 40)  # Exemple
 
-    
-    def wait_for_loading(self):  # Ajoutez cette méthode
-        """Nouvelle implémentation complète"""
-        print("Début du monitoring...")
-        for attempt in range(self.max_attempts):
-            try:
-                print(f"Tentative {attempt + 1}/{self.max_attempts}")
-                screenshot = self.phone.capture_screen()
-                
-                if screenshot is None:
-                    continue
-                
-                # Méthode de détection verte
-                if self.is_green_loaded(screenshot):  # À implémenter
-                    print("✅ Chargement détecté par couleur verte")
-                    return 1
+        def wait_for_loading(self):  # Ajoutez cette méthode
+            """Nouvelle implémentation complète"""
+            print("Début du monitoring...")
+            for attempt in range(self.max_attempts):
+                try:
+                    print(f"Tentative {attempt + 1}/{self.max_attempts}")
+                    screenshot = self.phone.capture_screen()
                     
-                # Méthode OCR (optionnelle)
-                percentage = self.detect_loading_percentage(screenshot)
-                if percentage == 100:
-                    print("✅ Chargement complet (100%)")
-                    return 1
+                    if screenshot is None:
+                        continue
                     
-                time.sleep(self.check_interval)
-                
-            except Exception as e:
-                print(f"Erreur: {str(e)}")
-        
-        print("❌ Timeout atteint")
-        return 0    
+                    # Méthode de détection verte
+                    if self.is_green_loaded(screenshot):  # À implémenter
+                        print("✅ Chargement détecté par couleur verte")
+                        return 1
+                        
+                    # Méthode OCR (optionnelle)
+                    percentage = self.detect_loading_percentage(screenshot)
+                    if percentage == 100:
+                        print("✅ Chargement complet (100%)")
+                        return 1
+                        
+                    time.sleep(self.check_interval)
+                    
+                except Exception as e:
+                    print(f"Erreur: {str(e)}")
+            
+            print("❌ Timeout atteint")
+            return 0    
 
     def detect_loading_percentage(self, image):
         """Détecte le pourcentage de chargement depuis une image"""
