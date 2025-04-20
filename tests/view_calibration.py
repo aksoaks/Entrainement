@@ -5,219 +5,185 @@ from matplotlib import pyplot as plt
 
 class AdvancedViewDetector:
     def __init__(self):
-        # Chemins des images
         self.base_path = "D:/Users/Documents/Code/Python/Entrainement/tests/"
         self.template_path = os.path.join(self.base_path, "templates/")
         
-        # Chargement des templates
-        self.templates = {
-            'barbarian': self._load_template('barbarian.png'),
-            'food': self._load_template('food.png'),
-            'gems': self._load_template('gems.png'),
-            'gold': self._load_template('gold.png'),
-            'stone': self._load_template('stone.png'),
-            'wood': self._load_template('wood.png')
-        }
-        
-        # Configuration des vues
+        # Chargement des templates avec vérification
+        self.templates = {}
+        template_files = ['barbarian.png', 'food.png', 'gems.png', 'gold.png', 'stone.png', 'wood.png']
+        for file in template_files:
+            try:
+                path = os.path.join(self.template_path, file)
+                img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+                if img is not None:
+                    if img.shape[2] == 4:  # Avec canal alpha
+                        self.templates[file.split('.')[0]] = (img[:,:,:3], img[:,:,3])
+                    else:
+                        self.templates[file.split('.')[0]] = (img, None)
+            except Exception as e:
+                print(f"Erreur chargement {file}: {str(e)}")
+
+        # Configuration des vues simplifiée
         self.view_config = {
             'city_view': {
                 'logo_zone': (74, 903, 243, 1060),
-                'expected_color': [9, 83, 132],  # BGR du screenshot
+                'color': [132, 83, 9],  # BGR exact du screenshot
                 'tolerance': 15
             },
             'map_view': {
                 'logo_zone': (74, 903, 243, 1060),
-                'expected_color': [9, 83, 132],
+                'color': [132, 83, 9],
                 'tolerance': 15
             },
             'explore_view': {
-                'logo_zone': (74, 903, 243, 1060),
-                'expected_color': [9, 83, 132],
-                'tolerance': 15,
-                'special_marker': {
-                    'position': (125, 501),
-                    'color': [197, 34, 251],  # BGR violet
-                    'tolerance': 10
-                },
-                'required_templates': ['barbarian']  # Templates requis
+                'special_marker': (125, 501, [197, 34, 251], 10)  # x, y, BGR, tolérance
             },
             'kingdom_view': {
                 'logo_zone': (2037, 944, 2174, 1064),
-                'expected_color': [100, 200, 250],
-                'tolerance': 50,
-                'required_templates': []  # Aucun template requis
+                'color': [100, 200, 250],
+                'tolerance': 50
             }
         }
 
-    def _load_template(self, filename):
-        """Charge un template avec gestion de la transparence"""
-        path = os.path.join(self.template_path, filename)
-        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-        
-        if img is None:
-            raise FileNotFoundError(f"Template non trouvé: {path}")
-            
-        # Séparation des canaux couleur et alpha
-        if img.shape[2] == 4:  # Avec canal alpha
-            template = img[:,:,:3]
-            alpha = img[:,:,3]
-            return (template, alpha)
-        else:
-            return (img, None)
-
     def _match_template(self, img, template_data):
-        """Fait une correspondance de template avec gestion de la transparence"""
+        """Correspondance de template optimisée"""
         template, alpha = template_data
         method = cv2.TM_CCOEFF_NORMED
         
-        if alpha is not None:
-            # Crée un masque à partir du canal alpha
-            mask = cv2.merge([alpha, alpha, alpha])
-            res = cv2.matchTemplate(img, template, method, mask=mask)
-        else:
-            res = cv2.matchTemplate(img, template, method)
-            
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-        return max_val  # Retourne le score de correspondance
+        try:
+            if alpha is not None:
+                mask = cv2.merge([alpha, alpha, alpha])
+                res = cv2.matchTemplate(img, template, method, mask=mask)
+            else:
+                res = cv2.matchTemplate(img, template, method)
+            return cv2.minMaxLoc(res)[1]  # Retourne le score max
+        except Exception:
+            return 0.0
 
-    def detect_resources(self, img):
-        """Détecte toutes les ressources présentes"""
-        found_resources = []
-        for res_name, template in self.templates.items():
-            if res_name == 'barbarian':
-                continue  # Géré séparément
-                
-            score = self._match_template(img, template)
-            if score > 0.8:  # Seuil de détection
-                found_resources.append(res_name)
-        return found_resources
-
-    def detect_view(self, img_path):
-        """Détection de la vue avec templates"""
-        img = cv2.imread(img_path)
+    def detect_view(self, img):
+        """Détection robuste de la vue"""
         if img is None:
-            raise FileNotFoundError(f"Image non trouvée: {img_path}")
+            return None
         
-        # 1. Détection kingdom_view (logo unique)
-        kingdom_config = self.view_config['kingdom_view']
-        k_roi = self._get_roi(img, kingdom_config['logo_zone'])
-        if k_roi is not None:
-            avg_color = np.mean(k_roi, axis=(0, 1))
-            if self._color_in_range(avg_color, kingdom_config['expected_color'], kingdom_config['tolerance']):
-                return 'kingdom_view'
+        # 1. Vérifier kingdom_view en premier
+        if 'kingdom_view' in self.view_config:
+            zone = self.view_config['kingdom_view'].get('logo_zone')
+            if zone:
+                x1, y1, x2, y2 = zone
+                if y2 <= img.shape[0] and x2 <= img.shape[1]:
+                    roi = img[y1:y2, x1:x2]
+                    avg_color = np.mean(roi, axis=(0, 1))
+                    expected = self.view_config['kingdom_view'].get('color')
+                    tol = self.view_config['kingdom_view'].get('tolerance', 50)
+                    if expected and np.all(np.abs(avg_color - expected) <= tol):
+                        return 'kingdom_view'
 
-        # 2. Détection explore_view (marqueur violet + barbares)
-        explore_config = self.view_config['explore_view']
-        ex_pos = explore_config['special_marker']['position']
-        if (ex_pos[1] < img.shape[0] and ex_pos[0] < img.shape[1]):
-            pixel = img[ex_pos[1], ex_pos[0]]
-            if self._color_in_range(pixel, 
-                                  explore_config['special_marker']['color'], 
-                                  explore_config['special_marker']['tolerance']):
-                # Vérification des barbares par template matching
-                barb_score = self._match_template(img, self.templates['barbarian'])
-                if barb_score > 0.8:
-                    return 'explore_view'
+        # 2. Vérifier explore_view (marqueur violet + barbares)
+        if 'explore_view' in self.view_config and 'special_marker' in self.view_config['explore_view']:
+            x, y, expected_color, tol = self.view_config['explore_view']['special_marker']
+            if y < img.shape[0] and x < img.shape[1]:
+                pixel = img[y, x]
+                if np.all(np.abs(pixel - expected_color) <= tol):
+                    if 'barbarian' in self.templates:
+                        score = self._match_template(img, self.templates['barbarian'])
+                        if score > 0.8:
+                            return 'explore_view'
 
-        # 3. Détection city_view/map_view
-        city_config = self.view_config['city_view']
-        c_roi = self._get_roi(img, city_config['logo_zone'])
-        if c_roi is not None:
-            avg_color = np.mean(c_roi, axis=(0, 1))
-            if self._color_in_range(avg_color, city_config['expected_color'], city_config['tolerance']):
-                return 'city_view'
-                
+        # 3. Différencier city_view et map_view
+        if 'city_view' in self.view_config and 'logo_zone' in self.view_config['city_view']:
+            zone = self.view_config['city_view']['logo_zone']
+            x1, y1, x2, y2 = zone
+            if y2 <= img.shape[0] and x2 <= img.shape[1]:
+                roi = img[y1:y2, x1:x2]
+                avg_color = np.mean(roi, axis=(0, 1))
+                expected = self.view_config['city_view'].get('color')
+                tol = self.view_config['city_view'].get('tolerance', 15)
+                if expected and np.all(np.abs(avg_color - expected) <= tol):
+                    return 'city_view'
+        
         return 'map_view'
 
-    def _get_roi(self, img, zone):
-        """Extrait une région d'intérêt avec vérification des limites"""
-        x1, y1, x2, y2 = zone
-        if y2 <= img.shape[0] and x2 <= img.shape[1]:
-            return img[y1:y2, x1:x2]
-        return None
+    def analyze_resources(self, img):
+        """Détection des ressources avec templates"""
+        resources = []
+        if img is None:
+            return resources
+            
+        for res_name, template_data in self.templates.items():
+            if res_name == 'barbarian':
+                continue  # Déjà utilisé pour explore_view
+                
+            score = self._match_template(img, template_data)
+            if score > 0.8:
+                resources.append(res_name)
+        return resources
 
-    def _color_in_range(self, color, expected, tolerance):
-        return np.all(np.abs(color - expected) <= tolerance)
-
-    def analyze_screen(self, img_path):
-        """Analyse complète avec visualisation"""
+    def visualize_detection(self, img_path):
+        """Visualisation claire des résultats"""
         img = cv2.imread(img_path)
         if img is None:
-            raise FileNotFoundError(f"Image non trouvée: {img_path}")
+            print(f"Impossible de charger {img_path}")
+            return
+            
+        view_type = self.detect_view(img)
+        resources = self.analyze_resources(img)
         
-        # Détection
-        view_type = self.detect_view(img_path)
-        resources = self.detect_resources(img)
+        plt.figure(figsize=(15, 6))
         
-        # Visualisation
-        plt.figure(figsize=(15, 8))
+        # Image originale avec annotations
+        plt.subplot(1, 2, 1)
+        display_img = img.copy()
         
-        # Image originale
-        plt.subplot(231)
-        plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        plt.title(f"Vue: {view_type}")
+        # Annoter selon la vue détectée
+        if view_type == 'kingdom_view':
+            zone = self.view_config['kingdom_view']['logo_zone']
+            cv2.rectangle(display_img, (zone[0], zone[1]), (zone[2], zone[3]), (0, 255, 0), 2)
+            cv2.putText(display_img, 'Kingdom View', (50, 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         
-        # Zones caractéristiques
-        zones = {
-            'Logo bas gauche': self.view_config[view_type]['logo_zone'],
-            'Ressources': "Détection automatique"
-        }
+        elif view_type == 'explore_view':
+            x, y, _, _ = self.view_config['explore_view']['special_marker']
+            cv2.circle(display_img, (x, y), 10, (255, 0, 255), -1)
+            cv2.putText(display_img, 'Explore View', (50, 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 255), 2)
+            
+            # Dessiner la zone barbare si détectée
+            if 'barbarian' in self.templates:
+                template, _ = self.templates['barbarian']
+                res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                if max_val > 0.8:
+                    h, w = template.shape[:2]
+                    cv2.rectangle(display_img, max_loc, (max_loc[0]+w, max_loc[1]+h), (0, 0, 255), 2)
         
-        if view_type == 'explore_view':
-            zones['Marqueur violet'] = self.view_config['explore_view']['special_marker']['position']
-        
-        # Dessin des zones
-        img_marked = img.copy()
-        for zone_name, zone in zones.items():
-            if isinstance(zone, tuple) and len(zone) == 4:
-                x1, y1, x2, y2 = zone
-                cv2.rectangle(img_marked, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(img_marked, zone_name, (x1, y1-10), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-            elif isinstance(zone, tuple) and len(zone) == 2:
-                x, y = zone
-                cv2.circle(img_marked, (x, y), 10, (255, 0, 255), -1)
-                cv2.putText(img_marked, zone_name, (x-50, y-15), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
-        
-        plt.subplot(232)
-        plt.imshow(cv2.cvtColor(img_marked, cv2.COLOR_BGR2RGB))
-        plt.title("Zones caractéristiques")
-        
-        # Détection des ressources
-        plt.subplot(233)
-        if resources:
-            res_text = "\n".join(resources)
-            plt.text(0.5, 0.5, res_text, ha='center', va='center', fontsize=12)
-            plt.title("Ressources détectées")
-        else:
-            plt.title("Aucune ressource détectée")
+        plt.imshow(cv2.cvtColor(display_img, cv2.COLOR_BGR2RGB))
+        plt.title(f"Vue détectée: {view_type}")
         plt.axis('off')
         
-        # Templates correspondants
-        for i, res_name in enumerate(['barbarian'] + list(self.templates.keys())[1:], 4):
-            plt.subplot(2, 3, i)
-            template = self.templates[res_name][0]
-            plt.imshow(cv2.cvtColor(template, cv2.COLOR_BGR2RGB))
-            plt.title(res_name)
-            plt.axis('off')
+        # Liste des ressources
+        plt.subplot(1, 2, 2)
+        if resources:
+            plt.text(0.1, 0.5, "\n".join(resources), fontsize=12)
+        else:
+            plt.text(0.1, 0.5, "Aucune ressource détectée", fontsize=12)
+        plt.title("Ressources détectées")
+        plt.axis('off')
         
         plt.tight_layout()
         plt.show()
-        
-        return {
-            'view': view_type,
-            'resources': resources
-        }
 
 if __name__ == "__main__":
     detector = AdvancedViewDetector()
     
-    # Analyse d'une capture
-    test_image = os.path.join(detector.base_path, "explore_view.png")
-    result = detector.analyze_screen(test_image)
+    # Test sur les différentes vues
+    test_images = {
+        'city_view': 'city_view.png',
+        'map_view': 'map_view.png',
+        'explore_view': 'explore_view.png',
+        'kingdom_view': 'kingdom_view.png'
+    }
     
-    print("\nRésultats:")
-    print(f"Type de vue: {result['view']}")
-    print(f"Ressources: {', '.join(result['resources']) if result['resources'] else 'Aucune'}")
+    for view_name, img_file in test_images.items():
+        print(f"\nAnalyse de {view_name}...")
+        img_path = os.path.join(detector.base_path, img_file)
+        detector.visualize_detection(img_path)
