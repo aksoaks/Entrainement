@@ -6,69 +6,74 @@ from phone_controller import PhoneController
 class GameLoader:
     def __init__(self):
         self.phone = PhoneController()
-        self.max_attempts = 5  # Réduit car vérification instantanée
-        self.check_interval = 1
+        self.max_attempts = 8  # Tentatives avant lancement
+        self.check_interval = 1.5
         
-        # Coordonnées et couleur du pixel à vérifier
+        # Configuration pixel
         self.pixel_x = 171
         self.pixel_y = 947
         self.expected_color = np.array([248, 255, 255])  # BGR
-        self.color_tolerance = 10  # Marge d'erreur
+        self.color_tolerance = 15  # Marge élargie
+        
+        # Configuration jeu
+        self.game_package = "com.lilithgame.roc.gp"  # Package ROK
 
     def check_pixel_color(self, image):
-        """Vérifie si le pixel cible a la bonne couleur"""
+        """Vérifie la couleur du pixel avec tolérance"""
         try:
-            # Vérifie que les coordonnées sont dans l'image
-            height, width = image.shape[:2]
-            if self.pixel_x >= width or self.pixel_y >= height:
-                print("Coordonnées pixel invalides")
-                return False
-                
-            # Récupère la couleur du pixel
             actual_color = image[self.pixel_y, self.pixel_x]
-            
-            # Calcule la différence avec la couleur attendue
-            color_diff = np.abs(actual_color - self.expected_color)
-            
-            print(f"Couleur réelle: {actual_color} | Attendue: {self.expected_color}")
-            
-            # Vérifie si dans la tolérance
-            return np.all(color_diff <= self.color_tolerance)
-            
+            return np.all(np.abs(actual_color - self.expected_color) <= self.color_tolerance)
+        except:
+            return False
+
+    def launch_game(self):
+        """Lance le jeu via ADB si pas détecté"""
+        print("Lancement du jeu...")
+        try:
+            subprocess.run(
+                ["adb", "shell", "monkey", "-p", self.game_package, "-c", "android.intent.category.LAUNCHER", "1"],
+                check=True,
+                timeout=10
+            )
+            time.sleep(10)  # Temps de chargement initial
+            return True
         except Exception as e:
-            print(f"Erreur vérification pixel: {e}")
+            print(f"Échec lancement: {e}")
             return False
 
     def wait_for_loading(self):
-        """Attend que le jeu soit chargé en vérifiant le pixel"""
-        print("Début vérification chargement...")
+        """Processus complet avec lancement automatique"""
+        print("=== Vérification état du jeu ===")
         
+        # Phase 1: Vérification rapide
         for attempt in range(1, self.max_attempts + 1):
-            try:
-                # Capture écran
-                screenshot = self.phone.capture_screen()
-                if screenshot is None:
-                    print("Échec capture écran")
-                    continue
-                
-                # Vérification pixel
-                if self.check_pixel_color(screenshot):
-                    print("✅ Pixel correct détecté - Jeu chargé")
-                    return 1
-                    
-                print(f"Tentative {attempt}/{self.max_attempts} - Jeu non chargé")
-                time.sleep(self.check_interval)
-                
-            except Exception as e:
-                print(f"Erreur: {e}")
+            screenshot = self.phone.capture_screen()
+            if screenshot is None:
                 continue
                 
-        print("❌ Timeout - Jeu non chargé")
+            if self.check_pixel_color(screenshot):
+                print(f"✅ Jeu déjà en cours (tentative {attempt})")
+                return 1
+                
+            time.sleep(self.check_interval)
+        
+        # Phase 2: Lancement si non détecté
+        print("Jeu non détecté - tentative de lancement...")
+        if self.launch_game():
+            # Phase 3: Attente post-lancement
+            for wait_attempt in range(10):  # 10 x 3s = 30s max
+                screenshot = self.phone.capture_screen()
+                if screenshot and self.check_pixel_color(screenshot):
+                    print("✅ Jeu lancé avec succès")
+                    return 1
+                time.sleep(3)
+        
+        print("❌ Échec de chargement")
         return 0
 
 if __name__ == "__main__":
     loader = GameLoader()
     if loader.wait_for_loading() == 1:
-        print("Jeu prêt!")
+        print("STATUS: Prêt à jouer!")
     else:
-        print("Échec détection")
+        print("STATUS: Échec - vérifiez manuellement")
