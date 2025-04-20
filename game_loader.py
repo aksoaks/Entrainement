@@ -1,141 +1,74 @@
 import cv2
-import pytesseract
 import numpy as np
-import re
 import time
-from phone_controller import PhoneController  # Modification ici
-from utils.image_utils import detect_loading_percentage  # Déplacé dans utils
+from phone_controller import PhoneController
 
 class GameLoader:
     def __init__(self):
         self.phone = PhoneController()
-        self.max_attempts = 30
-        self.check_interval = 2
-        # Initialisez TOUTES les variables nécessaires ici
-        self.loading_roi = (1000, 940, 250, 40)  # Exemple
+        self.max_attempts = 5  # Réduit car vérification instantanée
+        self.check_interval = 1
+        
+        # Coordonnées et couleur du pixel à vérifier
+        self.pixel_x = 171
+        self.pixel_y = 947
+        self.expected_color = np.array([248, 255, 255])  # BGR
+        self.color_tolerance = 10  # Marge d'erreur
 
-    def is_green_loaded(self, image, threshold=0.55):
-        """Détection robuste de vert majoritaire avec plages dynamiques"""
-        if image is None:
+    def check_pixel_color(self, image):
+        """Vérifie si le pixel cible a la bonne couleur"""
+        try:
+            # Vérifie que les coordonnées sont dans l'image
+            height, width = image.shape[:2]
+            if self.pixel_x >= width or self.pixel_y >= height:
+                print("Coordonnées pixel invalides")
+                return False
+                
+            # Récupère la couleur du pixel
+            actual_color = image[self.pixel_y, self.pixel_x]
+            
+            # Calcule la différence avec la couleur attendue
+            color_diff = np.abs(actual_color - self.expected_color)
+            
+            print(f"Couleur réelle: {actual_color} | Attendue: {self.expected_color}")
+            
+            # Vérifie si dans la tolérance
+            return np.all(color_diff <= self.color_tolerance)
+            
+        except Exception as e:
+            print(f"Erreur vérification pixel: {e}")
             return False
 
-        # Convertir en espace HSV (plus adapté pour la détection de couleur)
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        
-        # Plages de couleurs basées sur vos échantillons (format HSV)
-        green_ranges = [
-            ([25, 40, 30], [90, 200, 90]),   # Plage large pour vert clair
-            ([35, 50, 40], [80, 180, 80]),    # Plage moyenne
-            ([40, 60, 50], [75, 160, 70])     # Plage serrée
-        ]
-        
-        total_green = 0
-        total_pixels = image.shape[0] * image.shape[1]
-        
-        for (lower, upper) in green_ranges:
-            mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
-            total_green += np.count_nonzero(mask)
-        
-        # Calcul du ratio vert avec pondération
-        green_ratio = (total_green / len(green_ranges)) / total_pixels
-        print(f"Vert détecté: {green_ratio:.2%}")
-        
-        return green_ratio > threshold 
-
-    def detect_loading_percentage(self, image):
-        if image is None:
-            print("Erreur: Image vide")
-            return None
-            
-        try:
-            x, y, w, h = self.loading_roi
-            roi = image[y:y+h, x:x+w]
-            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            # ... (votre traitement OCR existant)
-        except Exception as e:
-            print(f"Erreur détection: {str(e)}")
-            return None
-
-        """Combine OCR et détection de couleur"""
-        print("Début du processus de chargement...")
+    def wait_for_loading(self):
+        """Attend que le jeu soit chargé en vérifiant le pixel"""
+        print("Début vérification chargement...")
         
         for attempt in range(1, self.max_attempts + 1):
             try:
-                print(f"Tentative {attempt}/{self.max_attempts}")
+                # Capture écran
                 screenshot = self.phone.capture_screen()
-                
                 if screenshot is None:
+                    print("Échec capture écran")
                     continue
-                    
-                # Méthode 1: Détection OCR
-                percentage = self.detect_loading_percentage(screenshot)
-                if percentage == 100:
-                    print("✅ Chargement complet (OCR)")
+                
+                # Vérification pixel
+                if self.check_pixel_color(screenshot):
+                    print("✅ Pixel correct détecté - Jeu chargé")
                     return 1
                     
-                # Méthode 2: Détection de couleur
-                if self.is_green_loaded(screenshot):
-                    print("✅ Chargement complet (Couleur verte)")
-                    return 1
-                    
+                print(f"Tentative {attempt}/{self.max_attempts} - Jeu non chargé")
                 time.sleep(self.check_interval)
                 
             except Exception as e:
-                print(f"Erreur: {str(e)}")
-        
-        print("❌ Échec du chargement")
-        return 0
-
-    def wait_for_loading(self):
-        """Version debuguée avec logs détaillés"""
-        print("\n--- Nouveau monitoring ---")
-        
-        for attempt in range(1, self.max_attempts + 1):
-            try:
-                print(f"\nTentative {attempt}/{self.max_attempts}")
-                
-                # 1. Capture
-                screenshot = self.phone.capture_screen("last_debug.png")
-                if screenshot is None:
-                    print("❌ Capture échouée")
-                    continue
-                    
-                # Debug: Sauvegarde temporaire
-                cv2.imwrite(f"debug_{attempt}.png", screenshot)
-                
-                # 2. Détection Verte
-                is_green = self.is_green_loaded(screenshot)
-                print(f"Détection verte: {is_green}")
-                
-                # 3. Détection OCR
-                percentage = self.detect_loading_percentage(screenshot)
-                print(f"OCR: {percentage}%")
-                
-                # Conditions de succès
-                if percentage == 100 or is_green:
-                    print("✅ Chargement confirmé")
-                    return 1
-                    
-                # Vérification visuelle manuelle
-                if attempt == 1:
-                    print("\n[DEBUG] Vérifiez les fichiers:")
-                    print(f"- last_debug.png : Capture complète")
-                    print(f"- debug_{attempt}.png : Image analysée")
-                    
-            except Exception as e:
-                print(f"⚠️ ERREUR: {str(e)}")
+                print(f"Erreur: {e}")
                 continue
                 
-            time.sleep(self.check_interval)
-        
-        print("\n❌ Échec après toutes les tentatives")
+        print("❌ Timeout - Jeu non chargé")
         return 0
 
 if __name__ == "__main__":
     loader = GameLoader()
-    game_loaded = loader.wait_for_loading()
-    
-    if game_loaded == 1:
-        print("Le jeu est prêt! game_loaded = 1")
+    if loader.wait_for_loading() == 1:
+        print("Jeu prêt!")
     else:
-        print("Échec du chargement")
+        print("Échec détection")
