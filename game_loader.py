@@ -39,22 +39,33 @@ class GameLoader:
             print(f"Erreur détection: {str(e)}")
             return None
 
-    def is_green_loaded(self, image):
-        """Détecte si l'écran est dominé par du vert clair (valeur HSV)"""
-        if image is None:
-            return False
-            
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        
-        # Plage de vert clair (à ajuster selon votre jeu)
-        lower_green = np.array([40, 40, 40])
-        upper_green = np.array([80, 255, 255])
-        
-        mask = cv2.inRange(hsv, lower_green, upper_green)
-        green_percentage = np.sum(mask > 0) / (image.shape[0] * image.shape[1])
-        
-        print(f"Pourcentage vert: {green_percentage:.2%}")
-        return green_percentage > 0.6  # Si >60% de vert
+def is_green_loaded(self, image, threshold=0.55):
+    """Détection robuste de vert majoritaire avec plages dynamiques"""
+    if image is None:
+        return False
+
+    # Convertir en espace HSV (plus adapté pour la détection de couleur)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    
+    # Plages de couleurs basées sur vos échantillons (format HSV)
+    green_ranges = [
+        ([25, 40, 30], [90, 200, 90]),   # Plage large pour vert clair
+        ([35, 50, 40], [80, 180, 80]),    # Plage moyenne
+        ([40, 60, 50], [75, 160, 70])     # Plage serrée
+    ]
+    
+    total_green = 0
+    total_pixels = image.shape[0] * image.shape[1]
+    
+    for (lower, upper) in green_ranges:
+        mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+        total_green += np.count_nonzero(mask)
+    
+    # Calcul du ratio vert avec pondération
+    green_ratio = (total_green / len(green_ranges)) / total_pixels
+    print(f"Vert détecté: {green_ratio:.2%}")
+    
+    return green_ratio > threshold
 
     def wait_for_loading(self):
         """Combine OCR et détection de couleur"""
