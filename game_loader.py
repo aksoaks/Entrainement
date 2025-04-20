@@ -27,18 +27,43 @@ class GameLoader:
             return False
 
     def unlock_device(self):
-        """Déverrouillage optimisé en une étape"""
+        """Déverrouillage robuste pour Huawei/Android"""
         try:
-            # Unlock combo (power + swipe rapide)
-            subprocess.run([
-                "adb", "shell", "input", "keyevent", "KEYCODE_WAKEUP",
-                "&&", "input", "swipe", "500", "1500", "500", "500", "100"
-            ], timeout=3)
-            time.sleep(1.5)  # Temps réduit
-            print("🔓 Déverrouillage instantané")
+            # 1. Allumer l'écran
+            subprocess.run(["adb", "shell", "input", "keyevent", "KEYCODE_POWER"], 
+                        timeout=2, check=True)
+            time.sleep(0.5)
+            
+            # 2. Glisser pour déverrouiller (coordonnées pour Huawei)
+            subprocess.run(["adb", "shell", "input", "swipe", "300", "1200", "300", "400", "200"],
+                        timeout=2, check=True)
+            time.sleep(1)
+            
+            # 3. Entrer le code PIN si nécessaire (à configurer)
+            # subprocess.run(["adb", "shell", "input", "text", "1234"], timeout=2)
+            # time.sleep(0.5)
+            
+            print("✅ Déverrouillage réussi")
             return True
+            
+        except subprocess.TimeoutExpired:
+            print("⚠️ Timeout déverrouillage - Réessayer")
         except Exception as e:
-            print(f"⚠️ Échec déverrouillage: {e}")
+            print(f"⚠️ Erreur déverrouillage: {str(e)}")
+        
+        return False
+
+    def check_phone_state(self):
+        """Vérifie si l'appareil est verrouillé"""
+        try:
+            result = subprocess.run(
+                ["adb", "shell", "dumpsys", "window"],
+                stdout=subprocess.PIPE,
+                text=True,
+                timeout=5
+            )
+            return "mDreamingLockscreen=true" in result.stdout
+        except:
             return False
 
     def launch_game(self):
@@ -57,32 +82,52 @@ class GameLoader:
             return False
 
     def wait_for_loading(self):
-        """Processus complet avec déverrouillage"""
-        print("=== Vérification du jeu ===")
+            """Processus complet avec vérification d'état"""
+        print("=== Vérification initiale ===")
         
-        # Vérification unique
+        # Vérification verrouillage
+        if self.check_phone_state():
+            print("📱 Appareil verrouillé - Déverrouillage...")
+            if not self.unlock_device():
+                print("❌ Impossible de déverrouiller")
+                return 0
+            time.sleep(3)  # Latence post-déverrouillage
+        
+        # Vérification jeu déjà lancé
         screenshot = self.phone.capture_screen()
-        if screenshot is not None and self.check_pixel_color(screenshot):
+        if self.check_pixel_color(screenshot):
             print("✅ Jeu déjà en cours")
             return 1
         
-        # Lancement + attente
-        launch_time = self.launch_game()
-        if launch_time is None:
+        # Lancement du jeu
+        print("🚀 Lancement du jeu...")
+        try:
+            subprocess.run(
+                ["adb", "shell", "monkey", "-p", self.game_package, "1"],
+                check=True,
+                timeout=15,
+                stdout=subprocess.DEVNULL
+            )
+        except Exception as e:
+            print(f"⚠️ Échec lancement: {str(e)}")
             return 0
-            
+        
+        # Attente chargement
         print("⏳ Attente du chargement...")
-        for attempt in range(1, self.post_launch_attempts + 1):
+        for attempt in range(1, 21):
             screenshot = self.phone.capture_screen()
-            if screenshot is not None and self.check_pixel_color(screenshot):
-                load_time = time.time() - launch_time
-                print(f"✅ Jeu chargé en {load_time:.1f}s")
+            if self.check_pixel_color(screenshot):
+                print(f"✅ Jeu chargé (tentative {attempt})")
                 return 1
                 
-            print(f"⌛ Tentative {attempt}/{self.post_launch_attempts}")
-            time.sleep(self.check_interval)
+            if self.check_phone_state():
+                print("📱 Re-verrouillage détecté!")
+                self.unlock_device()
+                
+            print(f"⌛ Tentative {attempt}/20")
+            time.sleep(3)
         
-        print("❌ Timeout après lancement")
+        print("❌ Timeout de chargement")
         return 0
 
 if __name__ == "__main__":
