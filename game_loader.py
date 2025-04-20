@@ -9,9 +9,41 @@ from utils.image_utils import detect_loading_percentage  # Déplacé dans utils
 class GameLoader:
     def __init__(self):
         self.phone = PhoneController()
-        self.loading_roi = (1000, 940, 250, 40)  # x, y, width, height
-        self.max_attempts = 30  # Nombre max de tentatives avant timeout
-        self.check_interval = 2  # Intervalle entre les vérifications en secondes
+        self.max_attempts = 30
+        self.check_interval = 2
+        # Initialisez TOUTES les variables nécessaires ici
+        self.loading_roi = (1000, 940, 250, 40)  # Exemple
+
+    
+    def wait_for_loading(self):  # Ajoutez cette méthode
+        """Nouvelle implémentation complète"""
+        print("Début du monitoring...")
+        for attempt in range(self.max_attempts):
+            try:
+                print(f"Tentative {attempt + 1}/{self.max_attempts}")
+                screenshot = self.phone.capture_screen()
+                
+                if screenshot is None:
+                    continue
+                
+                # Méthode de détection verte
+                if self.is_green_loaded(screenshot):  # À implémenter
+                    print("✅ Chargement détecté par couleur verte")
+                    return 1
+                    
+                # Méthode OCR (optionnelle)
+                percentage = self.detect_loading_percentage(screenshot)
+                if percentage == 100:
+                    print("✅ Chargement complet (100%)")
+                    return 1
+                    
+                time.sleep(self.check_interval)
+                
+            except Exception as e:
+                print(f"Erreur: {str(e)}")
+        
+        print("❌ Timeout atteint")
+        return 0    
 
     def detect_loading_percentage(self, image):
         """Détecte le pourcentage de chargement depuis une image"""
@@ -67,7 +99,6 @@ def is_green_loaded(self, image, threshold=0.55):
     
     return green_ratio > threshold
 
-    def wait_for_loading(self):
         """Combine OCR et détection de couleur"""
         print("Début du processus de chargement...")
         

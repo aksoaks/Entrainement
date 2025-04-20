@@ -9,6 +9,9 @@ import logging
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+loader = GameLoader()
+result = loader.wait_for_loading()  # Maintenant valide
+
 def main():
 
     phone = PhoneController()
