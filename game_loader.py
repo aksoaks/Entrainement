@@ -87,35 +87,49 @@ class GameLoader:
         return 0
 
     def wait_for_loading(self):
-        """Combine OCR et détection de couleur"""
-        print("Début du processus de chargement...")
+        """Version debuguée avec logs détaillés"""
+        print("\n--- Nouveau monitoring ---")
         
         for attempt in range(1, self.max_attempts + 1):
             try:
-                print(f"Tentative {attempt}/{self.max_attempts}")
-                screenshot = self.phone.capture_screen()
+                print(f"\nTentative {attempt}/{self.max_attempts}")
                 
+                # 1. Capture
+                screenshot = self.phone.capture_screen("last_debug.png")
                 if screenshot is None:
+                    print("❌ Capture échouée")
                     continue
                     
-                # Méthode 1: Détection OCR
-                percentage = self.detect_loading_percentage(screenshot)
-                if percentage == 100:
-                    print("✅ Chargement complet (OCR)")
-                    return 1
-                    
-                # Méthode 2: Détection de couleur
-                if self.is_green_loaded(screenshot):
-                    print("✅ Chargement complet (Couleur verte)")
-                    return 1
-                    
-                time.sleep(self.check_interval)
+                # Debug: Sauvegarde temporaire
+                cv2.imwrite(f"debug_{attempt}.png", screenshot)
                 
+                # 2. Détection Verte
+                is_green = self.is_green_loaded(screenshot)
+                print(f"Détection verte: {is_green}")
+                
+                # 3. Détection OCR
+                percentage = self.detect_loading_percentage(screenshot)
+                print(f"OCR: {percentage}%")
+                
+                # Conditions de succès
+                if percentage == 100 or is_green:
+                    print("✅ Chargement confirmé")
+                    return 1
+                    
+                # Vérification visuelle manuelle
+                if attempt == 1:
+                    print("\n[DEBUG] Vérifiez les fichiers:")
+                    print(f"- last_debug.png : Capture complète")
+                    print(f"- debug_{attempt}.png : Image analysée")
+                    
             except Exception as e:
-                print(f"Erreur: {str(e)}")
+                print(f"⚠️ ERREUR: {str(e)}")
+                continue
+                
+            time.sleep(self.check_interval)
         
-        print("❌ Échec du chargement")
-        return 0 
+        print("\n❌ Échec après toutes les tentatives")
+        return 0
 
 if __name__ == "__main__":
     loader = GameLoader()
