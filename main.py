@@ -1,6 +1,9 @@
 from game_loader import GameLoader
 from phone_controller import PhoneController
 import logging
+import subprocess
+
+subprocess.call([r"D:\Users\Documents\Code\Python\Entrainement\update_git.bat"])
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -22,5 +25,14 @@ def main():
     else:
         logging.error("Échec du chargement")
 
+
 if __name__ == "__main__":
-    main()
+    try:
+        loader = GameLoader()
+        if loader.wait_for_loading() == 1:
+            print("Jeu prêt!")
+        else:
+            print("Échec du chargement")
+
+    except Exception as e:
+        print(f"Erreur : {e}")
