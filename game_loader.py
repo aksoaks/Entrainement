@@ -39,60 +39,53 @@ class GameLoader:
             print(f"Erreur détection: {str(e)}")
             return None
 
-    def wait_for_loading(self):
-        """Version corrigée avec gestion améliorée"""
-        print("Vérification approfondie de la connexion...")
+    def is_green_loaded(self, image):
+        """Détecte si l'écran est dominé par du vert clair (valeur HSV)"""
+        if image is None:
+            return False
+            
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         
-        # Test matériel supplémentaire
-        device_model = self.phone.run_adb_command("getprop ro.product.model")
-        print(f"Modèle détecté: {device_model}")
+        # Plage de vert clair (à ajuster selon votre jeu)
+        lower_green = np.array([40, 40, 40])
+        upper_green = np.array([80, 255, 255])
         
-        if not self.phone.check_connection():
-            print("ERREUR: Vérifiez:")
-            print("- Débogage USB activé")
-            print("- Autorisation accordée")
-            print("- Câble USB fonctionnel")
-            return 0
+        mask = cv2.inRange(hsv, lower_green, upper_green)
+        green_percentage = np.sum(mask > 0) / (image.shape[0] * image.shape[1])
+        
+        print(f"Pourcentage vert: {green_percentage:.2%}")
+        return green_percentage > 0.6  # Si >60% de vert
 
-        print("Début du monitoring de chargement...")
-        attempt = 0
-        last_percentage = 0
-        
-        while attempt < self.max_attempts:
-            try:
-                print(f"Tentative {attempt + 1}/{self.max_attempts}")
-                screenshot = self.phone.capture_screen("current_screen.png")
+    def wait_for_loading(self):
+    """Combine OCR et détection de couleur"""
+    print("Début du processus de chargement...")
+    
+    for attempt in range(1, self.max_attempts + 1):
+        try:
+            print(f"Tentative {attempt}/{self.max_attempts}")
+            screenshot = self.phone.capture_screen()
+            
+            if screenshot is None:
+                continue
                 
-                if screenshot is None:
-                    raise ValueError("Échec capture écran")
+            # Méthode 1: Détection OCR
+            percentage = self.detect_loading_percentage(screenshot)
+            if percentage == 100:
+                print("✅ Chargement complet (OCR)")
+                return 1
                 
-                percentage = self.detect_loading_percentage(screenshot)
-                
-                if percentage is None:
-                    print("Aucun pourcentage détecté - vérifiez la ROI")
-                    attempt += 1
-                    continue
-                    
-                print(f"Progression: {percentage}%")
-                
-                if percentage == 100:
-                    print("✅ Chargement complet!")
-                    return 1
-                    
-                if percentage <= last_percentage:
-                    print("⚠️ Progression stagnante")
-                    attempt += 1
-                else:
-                    last_percentage = percentage
-                    
-            except Exception as e:
-                print(f"ERREUR: {str(e)}")
-                attempt += 1
+            # Méthode 2: Détection de couleur
+            if self.is_green_loaded(screenshot):
+                print("✅ Chargement complet (Couleur verte)")
+                return 1
                 
             time.sleep(self.check_interval)
-        
-        print("❌ Timeout atteint")
-        return 0
+            
+        except Exception as e:
+            print(f"Erreur: {str(e)}")
+    
+    print("❌ Échec du chargement")
+    return 0
 
 if __name__ == "__main__":
     loader = GameLoader()

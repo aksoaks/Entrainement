@@ -45,7 +45,7 @@ class PhoneController:
         except Exception as e:
             print(f"Échec commande ADB: {str(e)}")
             return ""
-            
+
     def _check_adb_installation(self):
         """Vérifie si ADB est installé et accessible"""
         try:
@@ -149,32 +149,40 @@ class PhoneController:
         sleep(1)  # Simulation de calibration
 
     def capture_screen(self, filename="screen.png"):
-        """Capture l'écran du téléphone et retourne l'image"""
+        """Capture améliorée avec vérification"""
         try:
-            # Supprimer l'ancien fichier s'il existe
-            if os.path.exists(filename):
-                os.remove(filename)
-                
-            # Nouvelle capture
-            with open(filename, 'wb') as f:
-                subprocess.run(
-                    self.adb_prefix + ["exec-out", "screencap", "-p"],
-                    stdout=f,
-                    stderr=subprocess.PIPE,
-                    check=True
-                )
+            # Nouvelle méthode plus fiable
+            result = subprocess.run(
+                self.adb_prefix + ["exec-out", "screencap -p"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10
+            )
             
-            # Lire et retourner l'image
-            img = cv2.imread(filename)
+            img_array = np.frombuffer(result.stdout, dtype=np.uint8)
+            img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+            
             if img is None:
-                raise ValueError("Impossible de lire l'image capturée")
+                raise ValueError("Données d'image corrompues")
+            
+            cv2.imwrite(filename, img)
             return img
             
+        except subprocess.TimeoutExpired:
+            print("Timeout capture - Redémarrage ADB...")
+            self.restart_adb()
+            return None
         except Exception as e:
-            print(f"Erreur de capture: {str(e)}")
-            # Retourne une image noire en cas d'échec
-            return np.zeros((self.resolution[1], self.resolution[0], 3), dtype=np.uint8)
+            print(f"Erreur capture: {str(e)}")
+            return None
 
+    def restart_adb(self):
+        """Redémarre le serveur ADB"""
+        subprocess.run(["adb", "kill-server"])
+        subprocess.run(["adb", "start-server"])
+        time.sleep(2)
+        
     def capture_and_show(self, scale_factor=0.5):
         """Capture et affiche l'écran avec redimensionnement"""
         try:
