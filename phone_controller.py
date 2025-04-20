@@ -17,6 +17,21 @@ class PhoneController:
         self.orientation = self.get_screen_orientation()
         self.setup_touch_parameters()
 
+    def check_connection(self):
+    """Vérification améliorée"""
+    try:
+        result = subprocess.run(self.adb_prefix + ["devices"],
+                              stdout=subprocess.PIPE,
+                              text=True,
+                              check=True)
+        print("Appareils connectés:\n", result.stdout)  # Debug
+        if "device" not in result.stdout:
+            raise RuntimeError("Aucun appareil autorisé")
+    except Exception as e:
+        print(f"ERREUR ADB: {str(e)}")
+        return False
+    return True
+    
     def _check_adb_installation(self):
         """Vérifie si ADB est installé et accessible"""
         try:

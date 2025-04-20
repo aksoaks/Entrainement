@@ -1,10 +1,19 @@
 from game_loader import GameLoader
+from phone_controller import PhoneController
 import logging
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def main():
+
+    phone = PhoneController()
+    print("Test ADB:")
+    print("Résolution:", phone.resolution)
+    print("Capture d'écran...")
+    img = phone.capture_screen()
+    print("Taille image:", img.shape if img is not None else "Échec")
+
     logging.info("Initialisation du système...")
     loader = GameLoader()
     

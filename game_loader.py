@@ -13,6 +13,18 @@ class GameLoader:
         self.max_attempts = 30  # Nombre max de tentatives avant timeout
         self.check_interval = 2  # Intervalle entre les vérifications en secondes
 
+    def wait_for_loading(self):
+    print("Vérification de la connexion...")
+    if not self.phone.check_connection():
+        print("Échec: Téléphone non connecté")
+        return 0
+
+    print("Capture de l'écran...")
+    screenshot = self.phone.capture_screen()
+    if screenshot is None:
+        print("Échec: Impossible de capturer l'écran")
+        return 0
+        
     def detect_loading_percentage(self, image):
         """Détecte le pourcentage de chargement depuis une image"""
         try:
