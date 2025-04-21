@@ -12,11 +12,6 @@ logging.basicConfig(filename=r'D:\Users\Documents\Code\Python\Entrainement\tests
                     level=logging.INFO, 
                     format='%(asctime)s - %(message)s')
 
-# Variables globales
-capture_queue = Queue()
-last_detected_view = None
-last_action_time = 0
-
 # Capture via adb (optimisé en utilisant directement la mémoire)
 def capture_screen_via_adb():
     process = subprocess.run(["adb", "exec-out", "screencap", "-p"], capture_output=True)
@@ -114,23 +109,6 @@ def measure_latency():
 
     last_detection_time = current_time
 
-# Fonction pour simuler un clic avec ADB
-def adb_click(x, y):
-    logging.info(f"Action ADB: Clic simulé en position ({x}, {y})")
-    # Vous pouvez remplacer cette ligne par un appel ADB réel pour simuler le clic
-
-# Fonction pour vérifier si une action doit être effectuée
-def should_process_action(current_view):
-    global last_detected_view, last_action_time
-    current_time = time.time()
-
-    # Seulement effectuer une action si la vue a changé et si le délai est suffisant
-    if current_view != last_detected_view and (current_time - last_action_time > 1):
-        last_detected_view = current_view
-        last_action_time = current_time
-        return True
-    return False
-
 # Fonction pour lancer scrcpy
 def start_scrcpy():
     subprocess.run(["scrcpy"])
@@ -185,15 +163,6 @@ def main_loop():
                     # Loguer l'action manuelle et mesurer la latence
                     log_user_action("Vue détectée", view)
                     measure_latency()
-
-                    # Vérifier si une action doit être effectuée
-                    if should_process_action(view):
-                        if view == "kingdom_view":
-                            # Simuler un clic sur une position spécifique dans la vue "kingdom_view"
-                            adb_click(600, 800)  # Exemple de clic simulé
-                        elif view == "map_view":
-                            adb_click(300, 400)  # Exemple de clic simulé dans la vue "map_view"
-
             time.sleep(0.05)  # Fréquence de traitement des images
 
     # Lancer scrcpy dans un thread séparé
