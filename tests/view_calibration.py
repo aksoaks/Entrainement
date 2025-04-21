@@ -1,147 +1,117 @@
+import os  
 import cv2
 import numpy as np
-import os
-from datetime import datetime
 
-class TemplateViewDetector:
+class FixedViewDetector:
     def __init__(self):
         self.base_path = "D:/Users/Documents/Code/Python/Entrainement/tests/"
         self.template_path = os.path.join(self.base_path, "templates/")
         
-        # Configuration des zones de détection
-        self.detection_zones = {
-            'goto_city': (122, 946, 201, 1014),    # Depuis map_view/explore_view/kingdom_view
-            'goto_map': (123, 943, 199, 1017),     # Depuis city_view
-            'explore_marker': (128, 494, 128, 494), # Point unique
-            'mail_button': (1926, 975, 1986, 1027) # kingdom_view seulement
+        # Configuration spécifique pour explore_marker
+        self.explore_marker_config = {
+            'template_path': os.path.join(self.template_path, "explore_marker.png"),
+            'position': (128, 494),  # Point unique
+            'color_range': {
+                'min': [180, 25, 230],  # BGR minimum
+                'max': [210, 45, 255]   # BGR maximum
+            },
+            'template_threshold': 0.85,
+            'color_tolerance': 15
         }
         
-        # Seuils de correspondance
-        self.template_thresholds = {
-            'goto_city': 0.85,
-            'goto_map': 0.85,
-            'explore_marker': 0.9,
-            'mail_button': 0.8
-        }
-        
-        # Chargement des templates
-        self.templates = self._load_templates()
+        # Charger le template
+        self.explore_template = cv2.imread(self.explore_marker_config['template_path'])
+        if self.explore_template is None:
+            print("Avertissement: Template explore_marker non chargé")
 
-    def _load_templates(self):
-        """Charge les templates depuis le dossier"""
-        templates = {}
-        for feature in ['goto_city', 'goto_map', 'explore_marker', 'mail_button']:
-            path = os.path.join(self.template_path, f"{feature}.png")
-            if os.path.exists(path):
-                template = cv2.imread(path, cv2.IMREAD_COLOR)
-                if template is not None:
-                    templates[feature] = template
-                    print(f"Template chargé: {feature} ({template.shape[1]}x{template.shape[0]})")
-                else:
-                    print(f"Erreur: Impossible de charger {path}")
+    def _detect_explore_marker(self, img):
+        """Détection hybride du marqueur explore (template + couleur)"""
+        x, y = self.explore_marker_config['position']
+        
+        # 1. Vérification couleur du pixel
+        pixel = img[y, x]
+        color_match = np.all(np.abs(pixel - self.explore_marker_config['color_range']['min']) <= self.explore_marker_config['color_tolerance'])
+        
+        # 2. Vérification par template matching autour du point
+        if self.explore_template is not None:
+            # Zone de recherche autour du point (50x50 pixels)
+            margin = 25
+            x1, y1 = max(0, x-margin), max(0, y-margin)
+            x2, y2 = min(img.shape[1], x+margin), min(img.shape[0], y+margin)
+            roi = img[y1:y2, x1:x2]
+            
+            if roi.size > 0 and roi.shape[0] >= self.explore_template.shape[0] and roi.shape[1] >= self.explore_template.shape[1]:
+                res = cv2.matchTemplate(roi, self.explore_template, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, _ = cv2.minMaxLoc(res)
+                template_match = max_val > self.explore_marker_config['template_threshold']
             else:
-                print(f"Avertissement: Template manquant {path}")
-        return templates
-
-    def _match_template(self, img, feature_name):
-        """Fait une correspondance de template dans la zone spécifique"""
-        if feature_name not in self.templates or feature_name not in self.detection_zones:
-            return False
-            
-        template = self.templates[feature_name]
-        x1, y1, x2, y2 = self.detection_zones[feature_name]
+                template_match = False
+        else:
+            template_match = False
         
-        # Découpage de la zone d'intérêt
-        roi = img[y1:y2, x1:x2]
-        if roi.size == 0:
-            return False
-            
-        # Correspondance de template
-        res = cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, _ = cv2.minMaxLoc(res)
-        
-        return max_val > self.template_thresholds[feature_name]
+        # Résultat final (les deux méthodes doivent concorder)
+        return color_match and template_match
 
     def detect_view(self, img):
-        """Détection basée sur les templates et zones spécifiques"""
+        """Détection avec la nouvelle méthode explore_marker"""
         if img is None:
             return 'unknown'
+            
+        # Détection explore_view en premier
+        if self._detect_explore_marker(img):
+            return 'explore_view'
+            
+        # ... (le reste de votre logique de détection)
         
-        # Détection hiérarchique
-        if self._match_template(img, 'mail_button') and self._match_template(img, 'goto_city'):
-            return 'kingdom_view'
-            
-        if self._match_template(img, 'explore_marker'):
-            if self._match_template(img, 'goto_city'):
-                return 'explore_view'
-            return 'unknown'
-            
-        if self._match_template(img, 'goto_map'):
-            return 'city_view'
-            
-        if self._match_template(img, 'goto_city'):
-            return 'map_view'
-            
         return 'unknown'
 
-    def analyze_test_images(self):
-        """Analyse les images de test avec rapports détaillés"""
-        test_images = [f"image_test{i}.png" for i in range(1, 5)]
+    def debug_explore_marker(self, img_path):
+        """Fonction spéciale pour debugger explore_marker"""
+        img = cv2.imread(img_path)
+        if img is None:
+            print("Erreur de chargement de l'image")
+            return
+            
+        x, y = self.explore_marker_config['position']
+        print(f"\nDebug explore_marker sur {os.path.basename(img_path)}:")
         
-        for img_file in test_images:
-            img_path = os.path.join(self.base_path, img_file)
-            if not os.path.exists(img_path):
-                print(f"\nImage manquante: {img_file}")
-                continue
-                
-            img = cv2.imread(img_path)
-            if img is None:
-                print(f"\nErreur de chargement: {img_file}")
-                continue
-                
-            print(f"\n{'#'*40}")
-            print(f"Analyse de {img_file}")
-            print(f"{'#'*40}")
+        # 1. Analyse couleur
+        pixel = img[y, x]
+        print(f"- Couleur du pixel: {pixel}")
+        print(f"- Plage attendue: {self.explore_marker_config['color_range']['min']} à {self.explore_marker_config['color_range']['max']}")
+        
+        # 2. Analyse template
+        if self.explore_template is not None:
+            margin = 25
+            x1, y1 = max(0, x-margin), max(0, y-margin)
+            x2, y2 = min(img.shape[1], x+margin), min(img.shape[0], y+margin)
+            roi = img[y1:y2, x1:x2]
             
-            # Détection complète
-            view = self.detect_view(img)
-            print(f"\n>> Vue détectée: {view.upper()}")
-            
-            # Rapport détaillé
-            print("\nDétails des détections:")
-            for feature in self.detection_zones:
-                matched = self._match_template(img, feature)
-                print(f"- {feature}: {'DÉTECTÉ' if matched else 'NON DÉTECTÉ'}")
+            if roi.size > 0:
+                res = cv2.matchTemplate(roi, self.explore_template, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                print(f"- Meilleure correspondance template: {max_val:.2f}")
                 
                 # Sauvegarde debug
-                self._save_debug(img, feature, matched)
-            
-            print(f"\n{'#'*40}")
-
-    def _save_debug(self, img, feature, matched):
-        """Sauvegarde les images de debug"""
-        debug_dir = os.path.join(self.base_path, "debug_results")
-        os.makedirs(debug_dir, exist_ok=True)
+                debug_img = roi.copy()
+                cv2.circle(debug_img, (max_loc[0], max_loc[1]), 5, (0, 255, 0), 2)
+                cv2.imwrite(os.path.join(self.base_path, "debug_results", "explore_debug.png"), debug_img)
+                print(f"- Image debug sauvegardée")
+            else:
+                print("- ROI vide (hors limites)")
+        else:
+            print("- Template non chargé")
         
-        x1, y1, x2, y2 = self.detection_zones[feature]
-        roi = img[y1:y2, x1:x2]
-        
-        if roi.size > 0:
-            status = "detected" if matched else "missed"
-            timestamp = datetime.now().strftime("%H%M%S")
-            cv2.imwrite(
-                os.path.join(debug_dir, f"debug_{feature}_{status}_{timestamp}.png"),
-                roi
-            )
+        # Résultat final
+        detected = self._detect_explore_marker(img)
+        print(f"\n>> explore_marker: {'DÉTECTÉ' if detected else 'NON DÉTECTÉ'}")
 
 if __name__ == "__main__":
-    detector = TemplateViewDetector()
+    detector = FixedViewDetector()
     
-    # 1. Vérification des templates chargés
-    print("\nTemplates chargés:")
-    for name, template in detector.templates.items():
-        print(f"- {name}: {template.shape[1]}x{template.shape[0]}")
-    
-    # 2. Analyse des images de test
-    print("\nDébut de l'analyse des images...")
-    detector.analyze_test_images()
+    # Test spécifique sur explore_view.png
+    test_image = os.path.join(detector.base_path, "explore_view.png")
+    if os.path.exists(test_image):
+        detector.debug_explore_marker(test_image)
+    else:
+        print("Fichier explore_view.png introuvable")
