@@ -1,117 +1,145 @@
-import os  
 import cv2
 import numpy as np
+import subprocess
+import tkinter as tk
+from threading import Thread
+import time
+from queue import Queue
 
-class FixedViewDetector:
-    def __init__(self):
-        self.base_path = "D:/Users/Documents/Code/Python/Entrainement/tests/"
-        self.template_path = os.path.join(self.base_path, "templates/")
-        
-        # Configuration spécifique pour explore_marker
-        self.explore_marker_config = {
-            'template_path': os.path.join(self.template_path, "explore_marker.png"),
-            'position': (128, 494),  # Point unique
-            'color_range': {
-                'min': [180, 25, 230],  # BGR minimum
-                'max': [210, 45, 255]   # BGR maximum
-            },
-            'template_threshold': 0.85,
-            'color_tolerance': 15
+# Capture via adb (optimisé en utilisant directement la mémoire)
+def capture_screen_via_adb():
+    process = subprocess.run(["adb", "exec-out", "screencap", "-p"], capture_output=True)
+    return np.frombuffer(process.stdout, np.uint8)
+
+# Fonction de détection optimisée
+def detect_view(image_data, templates, threshold=0.8, violet_threshold=0.7):
+    image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+    if image is None:
+        print("Erreur: Impossible de charger l'image")
+        return None, None
+
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    results = {}
+
+    # Optimiser la détection en travaillant sur des zones spécifiques
+    for view_name, template_info in templates.items():
+        template_path = template_info['path']
+        template = cv2.imread(template_path, cv2.IMREAD_COLOR)
+        if template is None:
+            continue
+
+        search_area = gray_image
+        search_offset = (0, 0)
+
+        # Limiter les zones à analyser (comme pour le mail_button)
+        if view_name == 'explore_marker':
+            x1, y1, x2, y2 = 85, 449, 354, 528
+            search_area = gray_image[y1:y2, x1:x2]
+            search_offset = (x1, y1)
+
+        if view_name == 'mail_button':
+            x1, y1, x2, y2 = 1922, 971, 1984, 1027
+            search_area = gray_image[y1:y2, x1:x2]
+            search_offset = (x1, y1)
+
+        # Utilisation d'un seuil de confiance plus élevé pour éviter les faux positifs
+        res = cv2.matchTemplate(search_area, cv2.cvtColor(template, cv2.COLOR_BGR2GRAY), cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        max_loc = (max_loc[0] + search_offset[0], max_loc[1] + search_offset[1])
+
+        violet_percent = 0
+        if template_info.get('check_violet', False):
+            x, y = max_loc
+            w, h = template.shape[1], template.shape[0]
+            roi = image[y:y+h, x:x+w]
+            hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+            lower_violet = np.array([130, 50, 50])
+            upper_violet = np.array([160, 255, 255])
+            mask = cv2.inRange(hsv, lower_violet, upper_violet)
+            violet_percent = np.sum(mask > 0) / (w * h)
+
+        detected = max_val >= threshold
+        if template_info.get('check_violet', False):
+            detected = detected and (violet_percent >= violet_threshold)
+
+        results[view_name] = {
+            'detected': bool(detected),
+            'confidence': float(max_val),
+            'violet_percent': float(violet_percent),
+            'location': max_loc
         }
-        
-        # Charger le template
-        self.explore_template = cv2.imread(self.explore_marker_config['template_path'])
-        if self.explore_template is None:
-            print("Avertissement: Template explore_marker non chargé")
 
-    def _detect_explore_marker(self, img):
-        """Détection hybride du marqueur explore (template + couleur)"""
-        x, y = self.explore_marker_config['position']
-        
-        # 1. Vérification couleur du pixel
-        pixel = img[y, x]
-        color_match = np.all(np.abs(pixel - self.explore_marker_config['color_range']['min']) <= self.explore_marker_config['color_tolerance'])
-        
-        # 2. Vérification par template matching autour du point
-        if self.explore_template is not None:
-            # Zone de recherche autour du point (50x50 pixels)
-            margin = 25
-            x1, y1 = max(0, x-margin), max(0, y-margin)
-            x2, y2 = min(img.shape[1], x+margin), min(img.shape[0], y+margin)
-            roi = img[y1:y2, x1:x2]
-            
-            if roi.size > 0 and roi.shape[0] >= self.explore_template.shape[0] and roi.shape[1] >= self.explore_template.shape[1]:
-                res = cv2.matchTemplate(roi, self.explore_template, cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, _ = cv2.minMaxLoc(res)
-                template_match = max_val > self.explore_marker_config['template_threshold']
-            else:
-                template_match = False
-        else:
-            template_match = False
-        
-        # Résultat final (les deux méthodes doivent concorder)
-        return color_match and template_match
+    return results, image
 
-    def detect_view(self, img):
-        """Détection avec la nouvelle méthode explore_marker"""
-        if img is None:
-            return 'unknown'
-            
-        # Détection explore_view en premier
-        if self._detect_explore_marker(img):
-            return 'explore_view'
-            
-        # ... (le reste de votre logique de détection)
-        
-        return 'unknown'
+# Fonction pour déterminer la vue
+def determine_final_view(detected):
+    if not detected['goto_city']['detected'] and detected['goto_map']['detected'] and not detected['explore_marker']['detected'] and not detected['mail_button']['detected']:
+        return "city_view"
+    elif detected['goto_city']['detected'] and not detected['goto_map']['detected'] and detected['explore_marker']['detected'] and not detected['mail_button']['detected']:
+        return "explore_view"
+    elif detected['goto_city']['detected'] and not detected['goto_map']['detected'] and not detected['explore_marker']['detected'] and not detected['mail_button']['detected']:
+        return "map_view"
+    elif detected['goto_city']['detected'] and not detected['goto_map']['detected'] and detected['explore_marker']['detected'] and detected['mail_button']['detected']:
+        return "kingdom_view"
+    else:
+        return "unknown"
 
-    def debug_explore_marker(self, img_path):
-        """Fonction spéciale pour debugger explore_marker"""
-        img = cv2.imread(img_path)
-        if img is None:
-            print("Erreur de chargement de l'image")
-            return
-            
-        x, y = self.explore_marker_config['position']
-        print(f"\nDebug explore_marker sur {os.path.basename(img_path)}:")
-        
-        # 1. Analyse couleur
-        pixel = img[y, x]
-        print(f"- Couleur du pixel: {pixel}")
-        print(f"- Plage attendue: {self.explore_marker_config['color_range']['min']} à {self.explore_marker_config['color_range']['max']}")
-        
-        # 2. Analyse template
-        if self.explore_template is not None:
-            margin = 25
-            x1, y1 = max(0, x-margin), max(0, y-margin)
-            x2, y2 = min(img.shape[1], x+margin), min(img.shape[0], y+margin)
-            roi = img[y1:y2, x1:x2]
-            
-            if roi.size > 0:
-                res = cv2.matchTemplate(roi, self.explore_template, cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, max_loc = cv2.minMaxLoc(res)
-                print(f"- Meilleure correspondance template: {max_val:.2f}")
-                
-                # Sauvegarde debug
-                debug_img = roi.copy()
-                cv2.circle(debug_img, (max_loc[0], max_loc[1]), 5, (0, 255, 0), 2)
-                cv2.imwrite(os.path.join(self.base_path, "debug_results", "explore_debug.png"), debug_img)
-                print(f"- Image debug sauvegardée")
-            else:
-                print("- ROI vide (hors limites)")
-        else:
-            print("- Template non chargé")
-        
-        # Résultat final
-        detected = self._detect_explore_marker(img)
-        print(f"\n>> explore_marker: {'DÉTECTÉ' if detected else 'NON DÉTECTÉ'}")
+# Fonction principale pour Tkinter
+def main_loop():
+    templates = {
+        'goto_city': {
+            'path': 'tests/templates/goto_city.png',
+            'check_violet': False
+        },
+        'goto_map': {
+            'path': 'tests/templates/goto_map.png',
+            'check_violet': False
+        },
+        'explore_marker': {
+            'path': 'tests/templates/explore_marker.png',
+            'check_violet': True
+        },
+        'mail_button': {
+            'path': 'tests/templates/mail_button.png',
+            'check_violet': False
+        }
+    }
+
+    # Fenêtre Tkinter
+    root = tk.Tk()
+    root.title("Vue Actuelle")
+    label = tk.Label(root, font=("Helvetica", 24))
+    label.pack()
+
+    # File d'attente pour stocker les images capturées
+    capture_queue = Queue()
+
+    # Thread pour la capture continue des images
+    def capture_thread():
+        while True:
+            image_data = capture_screen_via_adb()
+            capture_queue.put(image_data)
+            time.sleep(0.05)  # Fréquence de capture des images (environ toutes les 50 ms)
+
+    # Thread pour le traitement des images capturées
+    def process_thread():
+        while True:
+            if not capture_queue.empty():
+                image_data = capture_queue.get()
+                detected, _ = detect_view(image_data, templates)
+                if detected:
+                    view = determine_final_view(detected)
+                    label.config(text=f"Vue détectée: {view}")
+            time.sleep(0.05)  # Fréquence de traitement des images
+
+    # Lancer les threads de capture et de traitement
+    capture_thread_instance = Thread(target=capture_thread, daemon=True)
+    capture_thread_instance.start()
+
+    process_thread_instance = Thread(target=process_thread, daemon=True)
+    process_thread_instance.start()
+
+    root.mainloop()
 
 if __name__ == "__main__":
-    detector = FixedViewDetector()
-    
-    # Test spécifique sur explore_view.png
-    test_image = os.path.join(detector.base_path, "explore_view.png")
-    if os.path.exists(test_image):
-        detector.debug_explore_marker(test_image)
-    else:
-        print("Fichier explore_view.png introuvable")
+    main_loop()

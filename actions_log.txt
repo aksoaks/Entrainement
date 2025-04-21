@@ -1,0 +1,99 @@
+2025-04-21 20:00:41,814 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:00:42,995 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:00:42,995 - Latence de détection: 1.1805 secondes
+2025-04-21 20:00:44,168 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:00:44,168 - Latence de détection: 1.1731 secondes
+2025-04-21 20:00:45,294 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:00:45,294 - Latence de détection: 1.1259 secondes
+2025-04-21 20:00:47,854 - Action: Vue détectée - Vue détectée: city_view
+2025-04-21 20:00:47,854 - Latence de détection: 2.5599 secondes
+2025-04-21 20:00:50,361 - Action: Vue détectée - Vue détectée: city_view
+2025-04-21 20:00:50,361 - Latence de détection: 2.5072 secondes
+2025-04-21 20:00:52,914 - Action: Vue détectée - Vue détectée: city_view
+2025-04-21 20:00:52,914 - Latence de détection: 2.5526 secondes
+2025-04-21 20:00:55,310 - Action: Vue détectée - Vue détectée: city_view
+2025-04-21 20:00:55,310 - Latence de détection: 2.3967 secondes
+2025-04-21 20:00:57,402 - Action: Vue détectée - Vue détectée: city_view
+2025-04-21 20:00:57,402 - Latence de détection: 2.0921 secondes
+2025-04-21 20:00:58,525 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:00:58,525 - Latence de détection: 1.1227 secondes
+2025-04-21 20:00:59,691 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:00:59,691 - Latence de détection: 1.1662 secondes
+2025-04-21 20:01:00,871 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:00,871 - Latence de détection: 1.1796 secondes
+2025-04-21 20:01:02,311 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:02,311 - Latence de détection: 1.4401 secondes
+2025-04-21 20:01:03,843 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:03,843 - Latence de détection: 1.5324 secondes
+2025-04-21 20:01:05,427 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:05,427 - Latence de détection: 1.5837 secondes
+2025-04-21 20:01:06,959 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:06,959 - Latence de détection: 1.5318 secondes
+2025-04-21 20:01:08,603 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:08,603 - Latence de détection: 1.6440 secondes
+2025-04-21 20:01:10,234 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:10,235 - Latence de détection: 1.6318 secondes
+2025-04-21 20:01:11,665 - Action: Vue détectée - Vue détectée: explore_view
+2025-04-21 20:01:11,665 - Latence de détection: 1.4307 secondes
+2025-04-21 20:01:13,141 - Action: Vue détectée - Vue détectée: explore_view
+2025-04-21 20:01:13,141 - Latence de détection: 1.4758 secondes
+2025-04-21 20:01:14,631 - Action: Vue détectée - Vue détectée: explore_view
+2025-04-21 20:01:14,631 - Latence de détection: 1.4900 secondes
+2025-04-21 20:01:16,315 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:01:16,315 - Latence de détection: 1.6836 secondes
+2025-04-21 20:01:17,844 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:01:17,844 - Latence de détection: 1.5297 secondes
+2025-04-21 20:01:19,429 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:01:19,430 - Latence de détection: 1.5851 secondes
+2025-04-21 20:01:21,259 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:01:21,259 - Latence de détection: 1.8296 secondes
+2025-04-21 20:01:23,148 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:23,148 - Latence de détection: 1.8888 secondes
+2025-04-21 20:01:25,032 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:25,032 - Latence de détection: 1.8842 secondes
+2025-04-21 20:01:26,917 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:26,917 - Latence de détection: 1.8847 secondes
+2025-04-21 20:01:28,853 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:28,853 - Latence de détection: 1.9366 secondes
+2025-04-21 20:01:32,160 - Action: Vue détectée - Vue détectée: city_view
+2025-04-21 20:01:32,160 - Latence de détection: 3.3063 secondes
+2025-04-21 20:01:34,962 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:34,963 - Latence de détection: 2.8029 secondes
+2025-04-21 20:01:37,059 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:37,059 - Latence de détection: 2.0962 secondes
+2025-04-21 20:01:38,381 - Action: Vue détectée - Vue détectée: explore_view
+2025-04-21 20:01:38,381 - Latence de détection: 1.3221 secondes
+2025-04-21 20:01:39,956 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:01:39,956 - Latence de détection: 1.5750 secondes
+2025-04-21 20:01:41,636 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:01:41,636 - Latence de détection: 1.6799 secondes
+2025-04-21 20:01:43,260 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:01:43,260 - Latence de détection: 1.6245 secondes
+2025-04-21 20:01:45,040 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:01:45,040 - Latence de détection: 1.7800 secondes
+2025-04-21 20:01:46,878 - Action: Vue détectée - Vue détectée: unknown
+2025-04-21 20:01:46,878 - Latence de détection: 1.8374 secondes
+2025-04-21 20:01:48,715 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:48,715 - Latence de détection: 1.8374 secondes
+2025-04-21 20:01:49,935 - Action: Vue détectée - Vue détectée: explore_view
+2025-04-21 20:01:49,935 - Latence de détection: 1.2196 secondes
+2025-04-21 20:01:53,191 - Action: Vue détectée - Vue détectée: city_view
+2025-04-21 20:01:53,192 - Latence de détection: 3.2569 secondes
+2025-04-21 20:01:54,922 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:54,922 - Latence de détection: 1.7303 secondes
+2025-04-21 20:01:56,447 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:56,447 - Latence de détection: 1.5253 secondes
+2025-04-21 20:01:57,970 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:57,970 - Latence de détection: 1.5234 secondes
+2025-04-21 20:01:59,497 - Action: Vue détectée - Vue détectée: map_view
+2025-04-21 20:01:59,497 - Latence de détection: 1.5267 secondes
+2025-04-21 20:02:00,876 - Action: Vue détectée - Vue détectée: explore_view
+2025-04-21 20:02:00,877 - Latence de détection: 1.3794 secondes
+2025-04-21 20:02:02,455 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:02:02,455 - Latence de détection: 1.5784 secondes
+2025-04-21 20:02:03,983 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:02:03,983 - Latence de détection: 1.5280 secondes
+2025-04-21 20:02:05,668 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:02:05,668 - Latence de détection: 1.6855 secondes
+2025-04-21 20:02:07,544 - Action: Vue détectée - Vue détectée: kingdom_view
+2025-04-21 20:02:07,544 - Latence de détection: 1.8758 secondes
