@@ -3,164 +3,145 @@ import numpy as np
 import os
 from datetime import datetime
 
-class DebugViewDetector:
+class TemplateViewDetector:
     def __init__(self):
         self.base_path = "D:/Users/Documents/Code/Python/Entrainement/tests/"
+        self.template_path = os.path.join(self.base_path, "templates/")
         
-        # Configuration avec logging activé
-        self.features = {
-            'city_logo': {
-                'zone': (70, 900, 250, 1070),
-                'color_range': {
-                    'min': [120, 70, 0],
-                    'max': [140, 100, 20]
-                },
-                'debug_color': (0, 255, 0)  # Vert pour visualisation
-            },
-            'explore_marker': {
-                'zone': (120, 490, 135, 505),
-                'color_range': {
-                    'min': [180, 25, 230],
-                    'max': [210, 45, 255]
-                },
-                'debug_color': (255, 0, 255)  # Magenta
-            },
-            'kingdom_logo': {
-                'zone': (2030, 940, 2180, 1070),
-                'color_range': {
-                    'min': [90, 180, 240],
-                    'max': [110, 220, 260]
-                },
-                'debug_color': (0, 255, 255)  # Jaune
-            }
+        # Configuration des zones de détection
+        self.detection_zones = {
+            'goto_city': (122, 946, 201, 1014),    # Depuis map_view/explore_view/kingdom_view
+            'goto_map': (123, 943, 199, 1017),     # Depuis city_view
+            'explore_marker': (128, 494, 128, 494), # Point unique
+            'mail_button': (1926, 975, 1986, 1027) # kingdom_view seulement
         }
+        
+        # Seuils de correspondance
+        self.template_thresholds = {
+            'goto_city': 0.85,
+            'goto_map': 0.85,
+            'explore_marker': 0.9,
+            'mail_button': 0.8
+        }
+        
+        # Chargement des templates
+        self.templates = self._load_templates()
 
-    def _check_feature(self, img, feature_name):
-        """Vérifie une feature avec logging"""
-        feat = self.features.get(feature_name)
-        if not feat:
-            print(f"Feature {feature_name} non configurée")
+    def _load_templates(self):
+        """Charge les templates depuis le dossier"""
+        templates = {}
+        for feature in ['goto_city', 'goto_map', 'explore_marker', 'mail_button']:
+            path = os.path.join(self.template_path, f"{feature}.png")
+            if os.path.exists(path):
+                template = cv2.imread(path, cv2.IMREAD_COLOR)
+                if template is not None:
+                    templates[feature] = template
+                    print(f"Template chargé: {feature} ({template.shape[1]}x{template.shape[0]})")
+                else:
+                    print(f"Erreur: Impossible de charger {path}")
+            else:
+                print(f"Avertissement: Template manquant {path}")
+        return templates
+
+    def _match_template(self, img, feature_name):
+        """Fait une correspondance de template dans la zone spécifique"""
+        if feature_name not in self.templates or feature_name not in self.detection_zones:
             return False
             
-        x1, y1, x2, y2 = feat['zone']
+        template = self.templates[feature_name]
+        x1, y1, x2, y2 = self.detection_zones[feature_name]
+        
+        # Découpage de la zone d'intérêt
         roi = img[y1:y2, x1:x2]
-        
         if roi.size == 0:
-            print(f"Zone {feature_name} hors limites")
             return False
             
-        avg_color = np.mean(roi, axis=(0, 1))
-        min_val = np.array(feat['color_range']['min'])
-        max_val = np.array(feat['color_range']['max'])
+        # Correspondance de template
+        res = cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, _ = cv2.minMaxLoc(res)
         
-        print(f"\nAnalyse {feature_name}:")
-        print(f"- Position: ({x1},{y1}) à ({x2},{y2})")
-        print(f"- Couleur moyenne: {avg_color}")
-        print(f"- Plage attendue: {min_val} à {max_val}")
-        
-        result = np.all(avg_color >= min_val) and np.all(avg_color <= max_val)
-        print(f"- Résultat: {'OK' if result else 'NON'}")
-        
-        return result
+        return max_val > self.template_thresholds[feature_name]
 
     def detect_view(self, img):
-        """Détection avec logging complet"""
-        print("\n" + "="*50)
-        print("Début de l'analyse d'image")
-        print("="*50)
-        
+        """Détection basée sur les templates et zones spécifiques"""
         if img is None:
-            print("ERREUR: Image non chargée")
-            return 'error'
+            return 'unknown'
         
         # Détection hiérarchique
-        print("\n[1/3] Vérification explore_marker...")
-        if self._check_feature(img, 'explore_marker'):
-            print(">> Détection: EXPLORE_VIEW")
-            return 'explore_view'
-            
-        print("\n[2/3] Vérification kingdom_logo...")
-        if self._check_feature(img, 'kingdom_logo'):
-            print(">> Détection: KINGDOM_VIEW")
+        if self._match_template(img, 'mail_button') and self._match_template(img, 'goto_city'):
             return 'kingdom_view'
             
-        print("\n[3/3] Vérification city_logo...")
-        city_score = self._get_zone_similarity(img, 'city_logo')
-        print(f"- Similarité city_logo: {city_score:.2f}/1.0")
-        
-        if city_score > 0.7:
-            print(">> Détection: CITY_VIEW")
+        if self._match_template(img, 'explore_marker'):
+            if self._match_template(img, 'goto_city'):
+                return 'explore_view'
+            return 'unknown'
+            
+        if self._match_template(img, 'goto_map'):
             return 'city_view'
             
-        print(">> Aucune vue reconnue")
+        if self._match_template(img, 'goto_city'):
+            return 'map_view'
+            
         return 'unknown'
 
-    def _get_zone_similarity(self, img, feature_name):
-        """Calcule un score de similarité avec logging"""
-        feat = self.features.get(feature_name)
-        if not feat:
-            return 0
+    def analyze_test_images(self):
+        """Analyse les images de test avec rapports détaillés"""
+        test_images = [f"image_test{i}.png" for i in range(1, 5)]
+        
+        for img_file in test_images:
+            img_path = os.path.join(self.base_path, img_file)
+            if not os.path.exists(img_path):
+                print(f"\nImage manquante: {img_file}")
+                continue
+                
+            img = cv2.imread(img_path)
+            if img is None:
+                print(f"\nErreur de chargement: {img_file}")
+                continue
+                
+            print(f"\n{'#'*40}")
+            print(f"Analyse de {img_file}")
+            print(f"{'#'*40}")
             
-        x1, y1, x2, y2 = feat['zone']
+            # Détection complète
+            view = self.detect_view(img)
+            print(f"\n>> Vue détectée: {view.upper()}")
+            
+            # Rapport détaillé
+            print("\nDétails des détections:")
+            for feature in self.detection_zones:
+                matched = self._match_template(img, feature)
+                print(f"- {feature}: {'DÉTECTÉ' if matched else 'NON DÉTECTÉ'}")
+                
+                # Sauvegarde debug
+                self._save_debug(img, feature, matched)
+            
+            print(f"\n{'#'*40}")
+
+    def _save_debug(self, img, feature, matched):
+        """Sauvegarde les images de debug"""
+        debug_dir = os.path.join(self.base_path, "debug_results")
+        os.makedirs(debug_dir, exist_ok=True)
+        
+        x1, y1, x2, y2 = self.detection_zones[feature]
         roi = img[y1:y2, x1:x2]
         
-        if roi.size == 0:
-            return 0
-            
-        avg_color = np.mean(roi, axis=(0, 1))
-        target = (np.array(feat['color_range']['min']) + np.array(feat['color_range']['max'])) / 2
-        distance = np.linalg.norm(avg_color - target)
-        max_distance = np.linalg.norm([255, 255, 255])
-        similarity = 1 - (distance / max_distance)
-        
-        print(f"Similarité {feature_name}:")
-        print(f"- Couleur actuelle: {avg_color}")
-        print(f"- Couleur cible: {target}")
-        print(f"- Score: {similarity:.2f}")
-        
-        return similarity
-
-    def process_image(self, img_path):
-        """Traite une image avec sauvegarde des résultats"""
-        print(f"\n\n{'#'*20} Traitement de {os.path.basename(img_path)} {'#'*20}")
-        
-        img = cv2.imread(img_path)
-        if img is None:
-            print(f"ERREUR: Impossible de charger {img_path}")
-            return
-            
-        # Détection et logging
-        view_type = self.detect_view(img)
-        
-        # Sauvegarde du résultat
-        output_dir = os.path.join(self.base_path, "debug_results")
-        os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = os.path.join(output_dir, f"debug_{timestamp}_{os.path.basename(img_path)}")
-        
-        cv2.imwrite(output_path, img)
-        print(f"\nRésultats sauvegardés dans: {output_path}")
-        print(f"Conclusion: Vue détectée = {view_type.upper()}")
-        
-        return view_type
+        if roi.size > 0:
+            status = "detected" if matched else "missed"
+            timestamp = datetime.now().strftime("%H%M%S")
+            cv2.imwrite(
+                os.path.join(debug_dir, f"debug_{feature}_{status}_{timestamp}.png"),
+                roi
+            )
 
 if __name__ == "__main__":
-    detector = DebugViewDetector()
+    detector = TemplateViewDetector()
     
-    # Liste des images à analyser
-    test_images = [
-        'city_view.png',
-        'map_view.png',
-        'explore_view.png',
-        'kingdom_view.png'
-    ]
+    # 1. Vérification des templates chargés
+    print("\nTemplates chargés:")
+    for name, template in detector.templates.items():
+        print(f"- {name}: {template.shape[1]}x{template.shape[0]}")
     
-    # Traitement de chaque image
-    for img_file in test_images:
-        img_path = os.path.join(detector.base_path, img_file)
-        if os.path.exists(img_path):
-            detector.process_image(img_path)
-        else:
-            print(f"Fichier introuvable: {img_path}")
-    
-    print("\nTraitement terminé. Vérifiez les logs ci-dessus.")
+    # 2. Analyse des images de test
+    print("\nDébut de l'analyse des images...")
+    detector.analyze_test_images()
